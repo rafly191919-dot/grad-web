@@ -2387,3 +2387,313 @@ body {
   .a5-landscape-sheet,
   .a5-report-sheet.a5-landscape-sheet { width: 1120px !important; height: 790px !important; }
 }
+
+/* REVISI 1 & 4: semua tabel lebar wajib bisa digeser horizontal di HP dan desktop */
+.force-horizontal-scroll,
+.analysis-scroll-wrap,
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto !important;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.force-horizontal-scroll::-webkit-scrollbar,
+.analysis-scroll-wrap::-webkit-scrollbar,
+.table-wrap::-webkit-scrollbar {
+  height: 10px;
+}
+
+.force-horizontal-scroll::-webkit-scrollbar-thumb,
+.analysis-scroll-wrap::-webkit-scrollbar-thumb,
+.table-wrap::-webkit-scrollbar-thumb {
+  background: rgba(15, 81, 50, 0.35);
+  border-radius: 999px;
+}
+
+.wide-transaction-table,
+.grading-full-table {
+  min-width: 3600px !important;
+  table-layout: auto;
+}
+
+.analysis-wide-table {
+  min-width: 3000px !important;
+}
+
+.analysis-td-table {
+  min-width: 1450px !important;
+}
+
+.grading-full-table th,
+.grading-full-table td,
+.analysis-wide-table th,
+.analysis-wide-table td,
+.analysis-td-table th,
+.analysis-td-table td {
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.grading-full-table td:nth-child(7),
+.grading-full-table td:nth-child(20),
+.grading-full-table td:nth-child(21),
+.grading-full-table td:nth-child(22) {
+  white-space: normal;
+  min-width: 140px;
+}
+
+/* REVISI 2: tabel kelola kategori dan supplier pada Pengaturan */
+.settings-manage-grid {
+  align-items: start;
+}
+
+.settings-table-wrap {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  max-height: 360px;
+  overflow: auto !important;
+}
+
+.settings-table-wrap .data-table {
+  min-width: 680px;
+}
+
+.staff-hidden,
+body.role-operator [data-staff-only] {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .wide-transaction-table,
+  .grading-full-table {
+    min-width: 3400px !important;
+  }
+
+  .analysis-wide-table {
+    min-width: 2800px !important;
+  }
+
+  .analysis-td-table {
+    min-width: 1300px !important;
+  }
+
+  .settings-table-wrap .data-table {
+    min-width: 720px;
+  }
+}
+
+/* REVISI GABUNGAN FINAL: paksa fitur geser semua tabel lebar seperti Master Grading */
+.card:has(.table-wrap),
+.tab-content:has(.table-wrap),
+.analysis-stack,
+#dataSection .card,
+#analysisSection .card,
+#masterSection .card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.table-wrap,
+.force-horizontal-scroll,
+.analysis-scroll-wrap,
+.settings-table-wrap {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: scroll !important;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  padding-bottom: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.table-wrap .data-table,
+.force-horizontal-scroll .data-table,
+.analysis-scroll-wrap .data-table,
+.settings-table-wrap .data-table {
+  width: max-content !important;
+  max-width: none !important;
+  table-layout: auto !important;
+}
+
+#gradingDataTable.grading-full-table,
+#gradingDataTable.wide-transaction-table {
+  min-width: 4200px !important;
+}
+
+#tdDataTable.td-full-table,
+#tdDataTable.wide-transaction-table {
+  min-width: 1900px !important;
+}
+
+#supplierGradingTable,
+#driverGradingTable,
+#analysisAllGradingTable,
+#masterGradingSupplierTable,
+#masterGradingDriverTable,
+#masterGradingPlateTable {
+  min-width: 3600px !important;
+}
+
+#supplierTdTable,
+#driverTdTable,
+#analysisAllTdTable,
+#masterTdSupplierTable,
+#masterTdDriverTable,
+#masterTdPlateTable {
+  min-width: 1800px !important;
+}
+
+.show-scroll-hint::before,
+#dataSection .table-wrap::before,
+#analysisSection .table-wrap::before,
+#masterSection .table-wrap::before {
+  content: "Geser tabel ke kanan/kiri untuk melihat semua kolom";
+  display: block;
+  position: sticky;
+  left: 0;
+  width: max-content;
+  padding: 8px 10px;
+  color: var(--green-800);
+  background: var(--green-50);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 800;
+  z-index: 5;
+}
+
+#dataSection .data-table th,
+#dataSection .data-table td,
+#analysisSection .data-table th,
+#analysisSection .data-table td,
+#masterSection .data-table th,
+#masterSection .data-table td {
+  white-space: nowrap;
+  min-width: 92px;
+}
+
+#dataSection .data-table th:first-child,
+#dataSection .data-table td:first-child,
+#analysisSection .data-table th:first-child,
+#analysisSection .data-table td:first-child,
+#masterSection .data-table th:first-child,
+#masterSection .data-table td:first-child {
+  min-width: 170px;
+}
+
+#dataSection .row-actions,
+#analysisSection .row-actions {
+  min-width: 420px;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.table-wrap::-webkit-scrollbar,
+.force-horizontal-scroll::-webkit-scrollbar,
+.analysis-scroll-wrap::-webkit-scrollbar,
+.settings-table-wrap::-webkit-scrollbar {
+  height: 14px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb,
+.force-horizontal-scroll::-webkit-scrollbar-thumb,
+.analysis-scroll-wrap::-webkit-scrollbar-thumb,
+.settings-table-wrap::-webkit-scrollbar-thumb {
+  background: var(--green-700);
+  border-radius: 999px;
+  border: 3px solid var(--green-50);
+}
+
+.table-wrap::-webkit-scrollbar-track,
+.force-horizontal-scroll::-webkit-scrollbar-track,
+.analysis-scroll-wrap::-webkit-scrollbar-track,
+.settings-table-wrap::-webkit-scrollbar-track {
+  background: var(--green-50);
+  border-radius: 999px;
+}
+
+@media (max-width: 900px) {
+  #gradingDataTable.grading-full-table,
+  #gradingDataTable.wide-transaction-table,
+  #supplierGradingTable,
+  #driverGradingTable,
+  #analysisAllGradingTable,
+  #masterGradingSupplierTable,
+  #masterGradingDriverTable,
+  #masterGradingPlateTable {
+    min-width: 3900px !important;
+  }
+
+  #tdDataTable.td-full-table,
+  #tdDataTable.wide-transaction-table,
+  #supplierTdTable,
+  #driverTdTable,
+  #analysisAllTdTable,
+  #masterTdSupplierTable,
+  #masterTdDriverTable,
+  #masterTdPlateTable {
+    min-width: 1700px !important;
+  }
+}
+
+
+/* REVISI 1 FINAL: kolom identitas Data Transaksi tetap terlihat saat tabel digeser */
+#dataSection .table-wrap {
+  position: relative;
+}
+#dataSection #gradingDataTable th:first-child,
+#dataSection #gradingDataTable td:first-child,
+#dataSection #tdDataTable th:first-child,
+#dataSection #tdDataTable td:first-child {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 8;
+  min-width: 220px !important;
+  max-width: 240px !important;
+  background: #ffffff !important;
+  color: var(--green-900);
+  box-shadow: 2px 0 0 var(--line), 10px 0 18px rgba(6, 46, 31, 0.08);
+  white-space: normal !important;
+  word-break: break-word;
+}
+#dataSection #gradingDataTable th:first-child,
+#dataSection #tdDataTable th:first-child {
+  background: var(--green-900) !important;
+  color: #fff !important;
+  z-index: 12;
+}
+#dataSection #gradingDataTable td:first-child small,
+#dataSection #tdDataTable td:first-child small {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--muted);
+  line-height: 1.25;
+}
+#dataSection #gradingDataTable tbody tr:hover td:first-child,
+#dataSection #tdDataTable tbody tr:hover td:first-child {
+  background: var(--green-50) !important;
+}
+
+/* REVISI 2 FINAL: kartu pengaturan tambahan */
+.settings-manage-grid .card {
+  min-width: 0;
+}
+.settings-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+.settings-table-wrap .data-table {
+  min-width: 760px !important;
+}

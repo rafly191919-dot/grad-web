@@ -46,8 +46,8 @@
     }
   };
 
-  const OPERATOR_CODE = "123456";
-  const STAFF_CODE = "456789";
+  const OPERATOR_CODE = "123";
+  const STAFF_CODE = "789";
   const LOGIN_SESSION_KEY = "appLoggedIn";
   const ROLE_SESSION_KEY = "appRole";
   const COMPANY_NAME = "PT Kedap Sayaaq Dua";
@@ -131,7 +131,9 @@
     settings: clone(DEFAULT_SETTINGS),
     auditLogs: [],
     editingDriverId: null,
-    editingSupplierId: null
+    editingSupplierId: null,
+    editingCategoryId: null,
+    editingSettingsSupplierId: null
   };
 
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -215,6 +217,20 @@
       }
       return { id: driver.id || makeId("DRV"), name: driver.name || "", plate: driver.plate || "", supplier: driver.supplier || "", createdAt: driver.createdAt || new Date().toISOString(), updatedAt: driver.updatedAt || "" };
     });
+
+    
+    if (!state.settings.grading) state.settings.grading = clone(DEFAULT_SETTINGS.grading);
+    if (!Array.isArray(state.settings.grading.customCategories)) {
+      state.settings.grading.customCategories = [];
+    }
+    state.settings.grading.customCategories = state.settings.grading.customCategories.map((category) => ({
+      id: category.id || makeId("CAT"),
+      name: category.name || "Kategori Baru",
+      cut: Number(category.cut || 0),
+      status: category.status || "active",
+      createdAt: category.createdAt || new Date().toISOString(),
+      updatedAt: category.updatedAt || ""
+    }));
 
     saveAll();
   }
@@ -1079,6 +1095,11 @@
     byId("resetGradingSettingsButton").addEventListener("click", resetGradingSettings);
     byId("saveTdSettingsButton").addEventListener("click", saveTdSettings);
     byId("resetTdSettingsButton").addEventListener("click", resetTdSettings);
+    byId("saveCategorySettingButton")?.addEventListener("click", saveCategorySetting);
+    byId("newCategorySettingButton")?.addEventListener("click", () => clearCategorySettingForm(true));
+    byId("newCategorySettingButton")?.addEventListener("click", () => clearCategorySettingForm(true));
+    byId("saveSettingsSupplierButton")?.addEventListener("click", saveSettingsSupplier);
+    byId("newSettingsSupplierButton")?.addEventListener("click", () => clearSettingsSupplierForm(true));
 
     byId("exportBackupButton").addEventListener("click", exportBackupJson);
     byId("quickBackupButton").addEventListener("click", exportBackupJson);
@@ -1111,7 +1132,7 @@
     if (!actionEl) return;
     const action = actionEl.dataset.action;
     const id = actionEl.dataset.id;
-    const staffActions = new Set(["edit-grading", "delete-grading", "edit-td", "delete-td", "save-edit-grading", "save-edit-td", "confirm-delete-grading", "confirm-delete-td", "edit-driver", "delete-driver", "edit-supplier", "toggle-supplier", "delete-supplier"]);
+    const staffActions = new Set(["edit-grading", "delete-grading", "edit-td", "delete-td", "save-edit-grading", "save-edit-td", "confirm-delete-grading", "confirm-delete-td", "edit-driver", "delete-driver", "edit-supplier", "toggle-supplier", "delete-supplier", "edit-setting-category", "delete-setting-category", "toggle-setting-category", "edit-setting-supplier", "toggle-setting-supplier", "delete-setting-supplier"]);
     if (staffActions.has(action) && !requireStaffAction()) return;
 
     const actions = {
@@ -1145,7 +1166,13 @@
       "delete-driver": () => deleteDriver(id),
       "edit-supplier": () => loadSupplierToForm(id),
       "toggle-supplier": () => toggleSupplierStatus(id),
-      "delete-supplier": () => deleteSupplier(id)
+      "delete-supplier": () => deleteSupplier(id),
+      "edit-setting-category": () => loadCategorySettingToForm(id),
+      "toggle-setting-category": () => toggleCategorySettingStatus(id),
+      "delete-setting-category": () => deleteCategorySetting(id),
+      "edit-setting-supplier": () => loadSettingsSupplierToForm(id),
+      "toggle-setting-supplier": () => toggleSettingsSupplierStatus(id),
+      "delete-setting-supplier": () => deleteSettingsSupplier(id)
     };
 
     if (actions[action]) actions[action]();
@@ -1178,6 +1205,9 @@
     renderSupplierOptions();
     renderDriverDatalist();
     renderOfficerDatalist();
+    renderCustomCategoryInputRows();
+    renderSettingsCategoryTable();
+    renderSettingsSupplierTable();
     renderDashboard();
     renderDataTables();
     renderAnalysis();
@@ -1241,6 +1271,53 @@
     return String(form.elements[name]?.value || "").trim();
   }
 
+  function getCustomGradingCategories(activeOnly = false) {
+    const list = state.settings?.grading?.customCategories;
+    const rows = Array.isArray(list) ? list : [];
+    return rows
+      .map((category) => ({
+        id: sanitizeFirestoreId(category.id || makeId("CAT")),
+        name: String(category.name || "").trim(),
+        cut: Number(category.cut || 0),
+        status: category.status || "active"
+      }))
+      .filter((category) => category.name && (!activeOnly || category.status !== "inactive"));
+  }
+
+  function getGradingCategoryDefinitions(record = null) {
+    const base = [
+      { key: "mentah", label: "Mentah", type: "base" },
+      { key: "mengkal", label: "Mengkal", type: "base" },
+      { key: "tankos", label: "Tankos", type: "base" },
+      { key: "overripe", label: "Overripe", type: "base" },
+      { key: "busuk", label: "Busuk", type: "base" },
+      { key: "tangkaiPanjang", label: "Tangkai Panjang", type: "base" },
+      { key: "partheno", label: "Partheno", type: "base" },
+      { key: "makanTikus", label: "Makan Tikus", type: "base" }
+    ];
+    const custom = getCustomGradingCategories(false).map((category) => ({ key: category.id, label: category.name, type: "custom", cutRate: category.cut }));
+    const usedCustom = record && record.extraCategories ? Object.keys(record.extraCategories) : [];
+    usedCustom.forEach((id) => {
+      if (!custom.some((category) => category.key === id)) {
+        custom.push({ key: id, label: record.extraCategoryLabels?.[id] || id, type: "custom", cutRate: record.extraCategoryCuts?.[id] || 0 });
+      }
+    });
+    return [...base, ...custom];
+  }
+
+  function renderCustomCategoryInputRows() {
+    const tbody = byId("gradingInputTable")?.querySelector("tbody");
+    if (!tbody) return;
+    tbody.querySelectorAll("tr[data-custom-category='true']").forEach((row) => row.remove());
+    getCustomGradingCategories(true).forEach((category) => {
+      const tr = document.createElement("tr");
+      tr.dataset.customCategory = "true";
+      tr.dataset.cat = `custom_${category.id}`;
+      tr.innerHTML = `<td>${escapeHtml(category.name)}</td><td><input class="grading-count custom-grading-count" type="number" name="custom_${category.id}" min="0" step="1" value="0" /></td><td class="pct">0%</td><td class="cut">0%</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
   function calculateGrading(values) {
     const settings = state.settings.grading;
     const totalJanjang = Math.max(0, Number(values.totalJanjang || 0));
@@ -1253,7 +1330,9 @@
     const partheno = Math.max(0, Number(values.partheno || 0));
     const makanTikus = Math.max(0, Number(values.makanTikus || 0));
 
-    const totalTidakMasak = mentah + mengkal + tankos + overripe + busuk;
+    const extraCategories = values.extraCategories && typeof values.extraCategories === "object" ? values.extraCategories : {};
+    const extraTotal = Object.values(extraCategories).reduce((sum, value) => sum + Math.max(0, Number(value || 0)), 0);
+    const totalTidakMasak = mentah + mengkal + tankos + overripe + busuk + extraTotal;
     const totalMasak = Math.max(0, totalJanjang - totalTidakMasak);
 
     const pcts = {
@@ -1265,6 +1344,7 @@
       tangkaiPanjang: pct(tangkaiPanjang, totalJanjang),
       partheno: pct(partheno, totalJanjang),
       makanTikus: pct(makanTikus, totalJanjang),
+      extra: Object.fromEntries(Object.entries(extraCategories).map(([id, value]) => [id, pct(value, totalJanjang)])),
       masak: pct(totalMasak, totalJanjang),
       tidakMasak: pct(totalTidakMasak, totalJanjang)
     };
@@ -1277,10 +1357,14 @@
       busuk: pcts.busuk * settings.busukCut / 100,
       tangkaiPanjang: pcts.tangkaiPanjang * settings.tangkaiCut / 100,
       partheno: pcts.partheno * settings.parthenoCut / 100,
-      makanTikus: pcts.makanTikus * settings.makanTikusCut / 100
+      makanTikus: pcts.makanTikus * settings.makanTikusCut / 100,
+      extra: Object.fromEntries(getCustomGradingCategories(false).map((category) => {
+        const percent = pcts.extra?.[category.id] || 0;
+        return [category.id, percent * Number(category.cut || 0) / 100];
+      }))
     };
 
-    const totalCut = settings.baseCut + Object.values(cuts).reduce((sum, value) => sum + value, 0);
+    const totalCut = settings.baseCut + Object.entries(cuts).reduce((sum, [_key, value]) => sum + (typeof value === "object" ? Object.values(value).reduce((inner, item) => inner + Number(item || 0), 0) : Number(value || 0)), 0);
 
     return {
       totalJanjang,
@@ -1292,6 +1376,9 @@
       tangkaiPanjang,
       partheno,
       makanTikus,
+      extraCategories,
+      extraCategoryLabels: Object.fromEntries(getCustomGradingCategories(false).map((category) => [category.id, category.name])),
+      extraCategoryCuts: Object.fromEntries(getCustomGradingCategories(false).map((category) => [category.id, Number(category.cut || 0)])),
       totalTidakMasak,
       totalMasak,
       pcts,
@@ -1330,6 +1417,13 @@
         $(".cut", row).textContent = formatPct(result.cuts[cat]);
       }
     });
+    getCustomGradingCategories(true).forEach((category) => {
+      const row = $(`#gradingInputTable tr[data-cat="custom_${category.id}"]`);
+      if (row) {
+        $(".pct", row).textContent = formatPct(result.pcts.extra?.[category.id] || 0);
+        $(".cut", row).textContent = formatPct(result.cuts.extra?.[category.id] || 0);
+      }
+    });
 
     byId("gradingResultList").innerHTML = resultListHtml([
       ["Total janjang", formatNumber(result.totalJanjang)],
@@ -1361,6 +1455,10 @@
   }
 
   function getGradingFormValues(form) {
+    const extraCategories = {};
+    getCustomGradingCategories(true).forEach((category) => {
+      extraCategories[category.id] = getNumber(form, `custom_${category.id}`);
+    });
     return {
       totalJanjang: getNumber(form, "totalJanjang"),
       mentah: getNumber(form, "mentah"),
@@ -1370,7 +1468,8 @@
       busuk: getNumber(form, "busuk"),
       tangkaiPanjang: getNumber(form, "tangkaiPanjang"),
       partheno: getNumber(form, "partheno"),
-      makanTikus: getNumber(form, "makanTikus")
+      makanTikus: getNumber(form, "makanTikus"),
+      extraCategories
     };
   }
 
@@ -1578,7 +1677,7 @@
     printWindow.document.write(buildA5PrintableDocument(type, record, title, mode));
     printWindow.document.close();
     printWindow.focus();
-    toast(mode === "pdf" ? "Template A5 landscape dibuka. Pilih Save as PDF pada dialog print." : "Template A5 landscape dibuka untuk print.");
+    toast(mode === "pdf" ? "Template PDF dibuka. Klik tombol Save as PDF / Print di tab baru." : "Template print dibuka di tab baru. Klik tombol Print di tab tersebut.");
   }
 
   function printableValue(value) {
@@ -1594,23 +1693,18 @@
   }
 
   function printableGradingCategoryRows(row) {
-    const categories = [
-      ["Mentah", "mentah"],
-      ["Mengkal", "mengkal"],
-      ["Tankos", "tankos"],
-      ["Overripe", "overripe"],
-      ["Busuk", "busuk"],
-      ["Tangkai Panjang", "tangkaiPanjang"],
-      ["Partheno", "partheno"],
-      ["Makan Tikus", "makanTikus"]
-    ];
-    return categories.map(([label, key]) => `
+    return getGradingCategoryDefinitions(row).map((category) => {
+      const value = category.type === "custom" ? Number(row.extraCategories?.[category.key] || 0) : Number(row[category.key] || 0);
+      const percent = category.type === "custom" ? Number(row.pcts?.extra?.[category.key] || 0) : Number(row.pcts?.[category.key] || 0);
+      const cut = category.type === "custom" ? Number(row.cuts?.extra?.[category.key] || 0) : Number(row.cuts?.[category.key] || 0);
+      return `
       <tr>
-        <td>${escapeHtml(label)}</td>
-        <td>${formatNumber(row[key] || 0)}</td>
-        <td>${formatPct(row.pcts?.[key] || 0)}</td>
-        <td>${formatPct(row.cuts?.[key] || 0)}</td>
-      </tr>`).join("");
+        <td>${escapeHtml(category.label)}</td>
+        <td>${formatNumber(value)}</td>
+        <td>${formatPct(percent)}</td>
+        <td>${formatPct(cut)}</td>
+      </tr>`;
+    }).join("");
   }
 
   function tdDetailRowsA5(row) {
@@ -1702,67 +1796,64 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)}</title>
 <style>
-  @page { size: A5 landscape; margin: 0; }
+  @page { size: A4 portrait; margin: 0; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; width: 210mm; height: 148mm; background: #fff; color: #13251c; font-family: Arial, Helvetica, sans-serif; overflow: hidden; }
+  html, body { margin: 0; padding: 0; width: 210mm; min-height: 297mm; background: #eef6f1; color: #13251c; font-family: Arial, Helvetica, sans-serif; }
   body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .a5-print-stage { width: 210mm; height: 148mm; margin: 0; padding: 2.2mm 2.6mm; display: flex; align-items: stretch; justify-content: stretch; overflow: hidden; background: #eef6f1; page-break-after: avoid; break-after: avoid; }
-  .a5-report-sheet { width: 204.8mm; height: 143.6mm; max-width: 204.8mm; max-height: 143.6mm; overflow: hidden; background: #fff; border: 1px solid #bdd7c8; border-radius: 2.2mm; box-shadow: 0 10px 30px rgba(0,0,0,.16); display: flex; flex-direction: column; }
-  .a5-report-header { display: flex; justify-content: space-between; gap: 4mm; align-items: stretch; color: #fff; padding: 3mm 4mm; background: linear-gradient(135deg, #063a29, #0f7650); flex: 0 0 auto; }
+  .print-page { width: 210mm; height: 297mm; margin: 0 auto; padding: 4mm 3mm; background: #fff; position: relative; overflow: hidden; }
+  .a5-print-stage { width: 204mm; height: 143mm; margin: 0 auto; padding: 0; display: flex; align-items: stretch; justify-content: stretch; overflow: hidden; background: #eef6f1; }
+  .cut-line { position: absolute; left: 6mm; right: 6mm; top: 148.5mm; border-top: 1px dashed #94aa9d; color: #60766d; font-size: 7px; text-align: center; }
+  .cut-line span { position: relative; top: -7px; background: #fff; padding: 0 3mm; }
+  .a5-report-sheet { width: 204mm; height: 143mm; max-width: 204mm; max-height: 143mm; overflow: hidden; background: #fff; border: 1px solid #bdd7c8; border-radius: 2.2mm; box-shadow: 0 10px 30px rgba(0,0,0,.16); display: flex; flex-direction: column; }
+  .a5-report-header { display: flex; justify-content: space-between; gap: 4mm; align-items: stretch; color: #fff; padding: 3.2mm 4.2mm; background: linear-gradient(135deg, #063a29, #0f7650); flex: 0 0 auto; }
   .a5-kicker { font-size: 7px; letter-spacing: .16em; text-transform: uppercase; opacity: .88; font-weight: 800; }
-  .a5-report-header h1 { margin: .5mm 0 .6mm; font-size: 14.5px; line-height: 1; }
+  .a5-report-header h1 { margin: .5mm 0 .6mm; font-size: 16px; line-height: 1; }
   .a5-report-header p { margin: 0; font-size: 7.2px; opacity: .88; }
   .a5-report-id { min-width: 42mm; border: 1px solid rgba(255,255,255,.35); border-radius: 2.5mm; padding: 1.8mm 2.4mm; text-align: right; align-self: center; }
   .a5-report-id span { display: block; font-size: 6.5px; opacity: .86; text-transform: uppercase; letter-spacing: .08em; }
   .a5-report-id strong { display: block; font-size: 7.5px; margin-top: .6mm; word-break: break-word; }
-  .a5-landscape-body { flex: 1 1 auto; display: grid; grid-template-columns: 34% 25% 1fr; gap: 2mm; padding: 2mm 3mm 1.5mm; min-height: 0; align-items: stretch; }
-  .a5-panel { min-width: 0; min-height: 0; border: 1px solid #d7e7dd; border-radius: 2mm; background: #fbfdfb; padding: 1.7mm; overflow: hidden; }
+  .a5-landscape-body { flex: 1 1 auto; display: grid; grid-template-columns: 34% 25% 1fr; gap: 2.2mm; padding: 2.2mm 3mm 1.8mm; min-height: 0; align-items: stretch; }
+  .a5-panel { min-width: 0; min-height: 0; border: 1px solid #d7e7dd; border-radius: 2mm; background: #fbfdfb; padding: 2mm; overflow: hidden; display: flex; flex-direction: column; }
   .a5-panel h2 { margin: 0 0 1.3mm; font-size: 8px; color: #07563a; border-left: 2.5px solid #0f7650; padding-left: 1.5mm; }
-  .a5-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1mm; }
-  .a5-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1mm; }
-  .a5-info-cell, .a5-metric { border: 1px solid #d7e7dd; background: #fff; border-radius: 1.6mm; padding: 1.15mm 1.3mm; min-height: 9.5mm; }
+  .a5-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1mm; flex: 1 1 auto; align-content: stretch; }
+  .a5-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1mm; flex: 1 1 auto; align-content: stretch; }
+  .a5-info-cell, .a5-metric { border: 1px solid #d7e7dd; background: #fff; border-radius: 1.6mm; padding: 1.15mm 1.3mm; min-height: 10.8mm; display: flex; flex-direction: column; justify-content: center; }
   .a5-info-cell span, .a5-metric span { display: block; color: #60736a; font-size: 5.8px; text-transform: uppercase; letter-spacing: .04em; font-weight: 800; margin-bottom: .45mm; }
   .a5-info-cell strong, .a5-metric strong { display: block; font-size: 7.4px; line-height: 1.08; color: #13251c; word-break: break-word; }
   .a5-metric.is-highlight { background: #e5f7ed; border-color: #8ecfad; }
   .a5-metric.is-note { grid-column: span 2; min-height: 7mm; }
-  .a5-table { width: 100%; border-collapse: collapse; border: 1px solid #c8ded1; border-radius: 2mm; overflow: hidden; table-layout: fixed; }
-  .a5-table th { background: #07563a; color: #fff; text-align: left; font-size: 6.8px; padding: 1.1mm 1mm; }
-  .a5-table td { border-top: 1px solid #dfece5; font-size: 6.7px; padding: 1.05mm 1mm; line-height: 1.08; }
+  .a5-table { width: 100%; height: 100%; border-collapse: collapse; border: 1px solid #c8ded1; border-radius: 2mm; overflow: hidden; table-layout: fixed; }
+  .a5-table th { background: #07563a; color: #fff; text-align: left; font-size: 7.2px; padding: 1.25mm 1mm; }
+  .a5-table td { border-top: 1px solid #dfece5; font-size: 7px; padding: 1.2mm 1mm; line-height: 1.08; }
   .a5-table tbody tr:nth-child(even) { background: #f4fbf7; }
   .a5-footer { flex: 0 0 auto; display: flex; justify-content: space-between; gap: 4mm; margin: 0 3mm 2.3mm; padding-top: 1mm; border-top: 1px dashed #bdd5c7; color: #62766d; font-size: 6.2px; }
-  .a5-report-header { padding: 3.2mm 4.2mm; }
-  .a5-report-header h1 { font-size: 16px; }
-  .a5-landscape-body { grid-template-columns: 34% 25% 1fr; gap: 2.2mm; padding: 2.2mm 3mm 1.8mm; }
-  .a5-panel { display: flex; flex-direction: column; padding: 2mm; }
-  .a5-info-grid, .a5-summary-grid { flex: 1 1 auto; align-content: stretch; gap: 1.1mm; }
-  .a5-info-cell, .a5-metric { min-height: 10.8mm; display: flex; flex-direction: column; justify-content: center; }
-  .a5-table { height: 100%; }
-  .a5-table th { font-size: 7.2px; padding: 1.25mm 1mm; }
-  .a5-table td { font-size: 7px; padding: 1.2mm 1mm; }
-  .screen-actions { position: sticky; bottom: 0; display: flex; gap: 8px; justify-content: center; padding: 12px; background: rgba(255,255,255,.94); border-top: 1px solid #d8e7de; }
+  .screen-actions { position: sticky; bottom: 0; display: flex; gap: 8px; justify-content: center; padding: 12px; background: rgba(255,255,255,.96); border-top: 1px solid #d8e7de; }
   .screen-actions button { border: 0; border-radius: 10px; padding: 10px 16px; font-weight: 800; cursor: pointer; }
   .primary { background: #0f7650; color: #fff; }
   .secondary { background: #e9f7ee; color: #0b573b; }
   @media print {
-    @page { size: A5 landscape; margin: 0; }
-    html, body { width: 210mm; height: 148mm; background: #fff; overflow: hidden; }
-    .a5-print-stage { width: 210mm; height: 148mm; padding: 2.2mm 2.6mm; margin: 0; display: flex; align-items: stretch; justify-content: stretch; }
-    .a5-report-sheet { width: 204.8mm; height: 143.6mm; margin: 0; box-shadow: none; border-radius: 2mm; page-break-inside: avoid; break-inside: avoid; }
+    @page { size: A4 portrait; margin: 0; }
+    html, body { width: 210mm; height: 297mm; background: #fff; overflow: hidden; }
+    .print-page { width: 210mm; height: 297mm; margin: 0; padding: 4mm 3mm; box-shadow: none; page-break-after: avoid; break-after: avoid; }
+    .a5-print-stage { width: 204mm; height: 143mm; margin: 0 auto; }
+    .a5-report-sheet { width: 204mm; height: 143mm; margin: 0; box-shadow: none; border-radius: 2mm; page-break-inside: avoid; break-inside: avoid; }
     .screen-actions { display: none; }
   }
   @media screen and (max-width: 900px) {
-    html, body { width: 100%; min-height: 100vh; }
-    .a5-print-stage { transform: scale(.62); transform-origin: top center; width: 210mm; height: 148mm; }
+    html, body { width: 100%; min-height: 100vh; overflow: auto; }
+    .print-page { transform: scale(.58); transform-origin: top center; margin: 0 auto; }
   }
 </style>
 </head>
 <body>
-  <div class="a5-print-stage">${buildA5ReportSheet(type, record, "print")}</div>
+  <div class="print-page">
+    <div class="a5-print-stage">${buildA5ReportSheet(type, record, "print")}</div>
+    <div class="cut-line"><span>Garis potong A4 menjadi 2 area A5 landscape</span></div>
+  </div>
   <div class="screen-actions">
     <button class="secondary" onclick="window.close()">Tutup</button>
-    <button class="primary" onclick="window.print()">${mode === "pdf" ? "Save as PDF / Print" : "Print A5 Landscape"}</button>
+    <button class="primary" onclick="window.print()">${mode === "pdf" ? "Save as PDF / Print" : "Print"}</button>
   </div>
-  <script>setTimeout(function(){ window.print(); }, 500);</script>
 </body>
 </html>`;
   }
@@ -2247,59 +2338,121 @@ File JPG: ${fileName}`;
 
   function renderGradingDataTable(data) {
     const table = byId("gradingDataTable");
+    table.classList.add("grading-full-table", "wide-transaction-table");
+    const wrap = table.closest(".table-wrap");
+    if (wrap) wrap.classList.add("force-horizontal-scroll", "show-scroll-hint");
     if (!data.length) {
       table.innerHTML = emptyTable("Belum ada data grading sesuai filter.");
       return;
     }
+
+    const categoryDefs = [];
+    data.forEach((row) => {
+      getGradingCategoryDefinitions(row).forEach((category) => {
+        if (!categoryDefs.some((item) => item.key === category.key)) categoryDefs.push(category);
+      });
+    });
+    const categoryColumns = categoryDefs
+      .flatMap((category) => ([
+        { key: `${category.key}_jumlah`, label: category.label },
+        { key: `${category.key}_pct`, label: `% ${category.label}` },
+        { key: `${category.key}_cut`, label: `Pot. ${category.label}` }
+      ]));
+
+    const columns = [
+      { key: "id", label: "ID / Identitas" },
+      { key: "date", label: "Tanggal" },
+      { key: "time", label: "Jam" },
+      { key: "spk", label: "SPK" },
+      { key: "driver", label: "Sopir" },
+      { key: "plate", label: "Plat" },
+      { key: "supplier", label: "Supplier" },
+      { key: "ticket", label: "Tiket / DO" },
+      { key: "officer", label: "Petugas" },
+      { key: "totalJanjang", label: "Total Janjang" },
+      { key: "totalMasak", label: "Total Masak" },
+      { key: "pctMasak", label: "% Masak" },
+      { key: "totalTidakMasak", label: "Tidak Masak" },
+      { key: "pctTidakMasak", label: "% Tidak Masak" },
+      ...categoryColumns,
+      { key: "baseCut", label: "Pot. Dasar" },
+      { key: "totalCut", label: "Total Potongan" },
+      { key: "status", label: "Status" },
+      { key: "note", label: "Catatan" },
+      { key: "action", label: "Aksi" }
+    ];
+
     table.innerHTML = `
-      <thead><tr>
-        <th>ID</th><th>Tanggal</th><th>SPK</th><th>Sopir</th><th>Plat</th><th>Supplier</th><th>Total Janjang</th><th>Total Masak</th><th>% Masak</th><th>Tidak Masak</th><th>Potongan</th><th>Status</th><th>Aksi</th>
-      </tr></thead>
+      <thead><tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr></thead>
       <tbody>
-        ${data.map((row) => `
-          <tr>
-            <td>${escapeHtml(row.id)}</td>
-            <td>${formatDate(row.date)}<br><small>${escapeHtml(row.time || "")}</small></td>
-            <td>${escapeHtml(row.spk || "-")}</td>
-            <td>${escapeHtml(row.driver)}</td>
-            <td>${escapeHtml(row.plate)}</td>
-            <td>${escapeHtml(row.supplier)}</td>
-            <td>${formatNumber(row.totalJanjang)}</td>
-            <td>${formatNumber(row.totalMasak)}</td>
-            <td>${formatPct(row.pcts?.masak)}</td>
-            <td>${formatNumber(row.totalTidakMasak)}</td>
-            <td><strong>${formatPct(row.totalCut)}</strong></td>
-            <td>${statusBadge(row.status)}</td>
-            <td>${transactionActionsHtml("grading", row.id)}</td>
-          </tr>`).join("")}
+        ${data.map((row) => {
+          const catValues = categoryDefs.reduce((acc, category) => {
+            const value = category.type === "custom" ? Number(row.extraCategories?.[category.key] || 0) : Number(row[category.key] || 0);
+            const pctValue = category.type === "custom" ? Number(row.pcts?.extra?.[category.key] || 0) : Number(row.pcts?.[category.key] || 0);
+            const cutValue = category.type === "custom" ? Number(row.cuts?.extra?.[category.key] || 0) : Number(row.cuts?.[category.key] || 0);
+            acc[`${category.key}_jumlah`] = formatNumber(value);
+            acc[`${category.key}_pct`] = formatPct(pctValue);
+            acc[`${category.key}_cut`] = formatPct(cutValue);
+            return acc;
+          }, {});
+          const cells = {
+            id: `<strong>${escapeHtml(row.id)}</strong><br><small>${escapeHtml(row.driver || "-")} · ${escapeHtml(row.supplier || "-")}</small>`,
+            date: formatDate(row.date),
+            time: escapeHtml(row.time || ""),
+            spk: escapeHtml(row.spk || "-"),
+            driver: escapeHtml(row.driver),
+            plate: escapeHtml(row.plate),
+            supplier: escapeHtml(row.supplier),
+            ticket: escapeHtml(row.ticket || "-"),
+            officer: escapeHtml(row.officer || "-"),
+            totalJanjang: formatNumber(row.totalJanjang),
+            totalMasak: formatNumber(row.totalMasak),
+            pctMasak: formatPct(row.pcts?.masak),
+            totalTidakMasak: formatNumber(row.totalTidakMasak),
+            pctTidakMasak: formatPct(row.pcts?.tidakMasak),
+            ...catValues,
+            baseCut: formatPct(row.baseCut),
+            totalCut: `<strong>${formatPct(row.totalCut)}</strong>`,
+            status: statusBadge(row.status),
+            note: escapeHtml(row.note || "-"),
+            action: transactionActionsHtml("grading", row.id)
+          };
+          return `<tr>${columns.map((column) => `<td>${cells[column.key] ?? ""}</td>`).join("")}</tr>`;
+        }).join("")}
       </tbody>`;
   }
 
   function renderTdDataTable(data) {
     const table = byId("tdDataTable");
+    table.classList.add("wide-transaction-table", "td-full-table");
+    const wrap = table.closest(".table-wrap");
+    if (wrap) wrap.classList.add("force-horizontal-scroll", "show-scroll-hint");
     if (!data.length) {
       table.innerHTML = emptyTable("Belum ada data tenera dura sesuai filter.");
       return;
     }
     table.innerHTML = `
       <thead><tr>
-        <th>ID</th><th>Tanggal</th><th>SPK</th><th>Sopir</th><th>Plat</th><th>Supplier</th><th>Total Sampel</th><th>Tenera</th><th>% Tenera</th><th>Dura</th><th>% Dura</th><th>Status</th><th>Aksi</th>
+        <th>ID / Identitas</th><th>Tanggal</th><th>SPK</th><th>Sopir</th><th>Plat</th><th>Supplier</th><th>Tiket / DO</th><th>Petugas</th><th>Total Sampel</th><th>Tenera</th><th>% Tenera</th><th>Dura</th><th>% Dura</th><th>Status</th><th>Catatan</th><th>Aksi</th>
       </tr></thead>
       <tbody>
         ${data.map((row) => `
           <tr>
-            <td>${escapeHtml(row.id)}</td>
+            <td><strong>${escapeHtml(row.id)}</strong><br><small>${escapeHtml(row.driver || "-")} · ${escapeHtml(row.supplier || "-")}</small></td>
             <td>${formatDate(row.date)}<br><small>${escapeHtml(row.time || "")}</small></td>
             <td>${escapeHtml(row.spk || "-")}</td>
             <td>${escapeHtml(row.driver)}</td>
             <td>${escapeHtml(row.plate)}</td>
             <td>${escapeHtml(row.supplier)}</td>
+            <td>${escapeHtml(row.ticket || "-")}</td>
+            <td>${escapeHtml(row.officer || "-")}</td>
             <td>${formatNumber(row.totalSample)}</td>
             <td>${formatNumber(row.tenera)}</td>
             <td>${formatPct(row.pctTenera)}</td>
             <td>${formatNumber(row.dura)}</td>
             <td>${formatPct(row.pctDura)}</td>
             <td>${statusBadge(row.status)}</td>
+            <td>${escapeHtml(row.note || "-")}</td>
             <td>${transactionActionsHtml("td", row.id)}</td>
           </tr>`).join("")}
       </tbody>`;
@@ -2338,26 +2491,58 @@ File JPG: ${fileName}`;
     renderSimpleTable(byId("analysisAllTdTable"), allTdColumns(), td.map(toAllTdAnalysisRow));
 
     const topSupplierByVolume = maxBy(supplierG, "totalJanjang");
+    const topSupplierCount = maxBy(supplierG, "count");
+    const topSupplierMasak = maxBy(supplierG, "pctMasak");
     const bestSupplier = minBy(supplierG, "avgTotalCut");
+    const lowCutSupplier = minBy(supplierG, "avgTotalCut");
     const worstSupplier = maxBy(supplierG, "avgTotalCut");
     const topTeneraSupplier = maxBy(supplierTd, "pctTenera");
+    const topDuraSupplier = maxBy(supplierTd, "pctDura");
     const topDriverVolume = maxBy(driverG, "totalJanjang");
+    const topDriverCount = maxBy(driverG, "count");
+    const topDriverMasak = maxBy(driverG, "pctMasak");
     const bestDriver = minBy(driverG, "avgTotalCut");
+    const lowCutDriver = minBy(driverG, "avgTotalCut");
     const worstDriver = maxBy(driverG, "avgTotalCut");
     const topTeneraDriver = maxBy(driverTd, "pctTenera");
+    const topDuraDriver = maxBy(driverTd, "pctDura");
 
     byId("rankingSupplier").innerHTML = miniList([
-      ["Volume janjang tertinggi", topSupplierByVolume ? `${topSupplierByVolume.supplier} (${formatNumber(topSupplierByVolume.totalJanjang)})` : "-"],
-      ["Kualitas grading terbaik", bestSupplier ? `${bestSupplier.supplier} (${formatPct(bestSupplier.avgTotalCut)})` : "-"],
-      ["Potongan tertinggi", worstSupplier ? `${worstSupplier.supplier} (${formatPct(worstSupplier.avgTotalCut)})` : "-"],
-      ["Tenera tertinggi", topTeneraSupplier ? `${topTeneraSupplier.supplier} (${formatPct(topTeneraSupplier.pctTenera)})` : "-"]
+      ["Volume janjang tertinggi", rankText(topSupplierByVolume, "supplier", "totalJanjang", "number")],
+      ["Total transaksi terbanyak", rankText(topSupplierCount, "supplier", "count", "number")],
+      ["Masak tertinggi", rankText(topSupplierMasak, "supplier", "pctMasak", "percent")],
+      ["Kualitas grading terbaik", rankText(bestSupplier, "supplier", "avgTotalCut", "percent")],
+      ["Potongan terendah", rankText(lowCutSupplier, "supplier", "avgTotalCut", "percent")],
+      ["Potongan tertinggi", rankText(worstSupplier, "supplier", "avgTotalCut", "percent")],
+      ["Mentah tertinggi", rankText(maxBy(supplierG, "pctMentah"), "supplier", "pctMentah", "percent")],
+      ["Mengkal tertinggi", rankText(maxBy(supplierG, "pctMengkal"), "supplier", "pctMengkal", "percent")],
+      ["Tankos tertinggi", rankText(maxBy(supplierG, "pctTankos"), "supplier", "pctTankos", "percent")],
+      ["Overripe tertinggi", rankText(maxBy(supplierG, "pctOverripe"), "supplier", "pctOverripe", "percent")],
+      ["Busuk tertinggi", rankText(maxBy(supplierG, "pctBusuk"), "supplier", "pctBusuk", "percent")],
+      ["Tangkai panjang tertinggi", rankText(maxBy(supplierG, "pctTangkaiPanjang"), "supplier", "pctTangkaiPanjang", "percent")],
+      ["Partheno tertinggi", rankText(maxBy(supplierG, "pctPartheno"), "supplier", "pctPartheno", "percent")],
+      ["Makan tikus tertinggi", rankText(maxBy(supplierG, "pctMakanTikus"), "supplier", "pctMakanTikus", "percent")],
+      ["Tenera tertinggi", rankText(topTeneraSupplier, "supplier", "pctTenera", "percent")],
+      ["Dura tertinggi", rankText(topDuraSupplier, "supplier", "pctDura", "percent")]
     ]);
 
     byId("rankingDriver").innerHTML = miniList([
-      ["Volume janjang tertinggi", topDriverVolume ? `${topDriverVolume.driver} (${formatNumber(topDriverVolume.totalJanjang)})` : "-"],
-      ["Kualitas grading terbaik", bestDriver ? `${bestDriver.driver} (${formatPct(bestDriver.avgTotalCut)})` : "-"],
-      ["Potongan tertinggi", worstDriver ? `${worstDriver.driver} (${formatPct(worstDriver.avgTotalCut)})` : "-"],
-      ["Tenera tertinggi", topTeneraDriver ? `${topTeneraDriver.driver} (${formatPct(topTeneraDriver.pctTenera)})` : "-"]
+      ["Volume janjang tertinggi", rankText(topDriverVolume, "driver", "totalJanjang", "number")],
+      ["Total transaksi terbanyak", rankText(topDriverCount, "driver", "count", "number")],
+      ["Masak tertinggi", rankText(topDriverMasak, "driver", "pctMasak", "percent")],
+      ["Kualitas grading terbaik", rankText(bestDriver, "driver", "avgTotalCut", "percent")],
+      ["Potongan terendah", rankText(lowCutDriver, "driver", "avgTotalCut", "percent")],
+      ["Potongan tertinggi", rankText(worstDriver, "driver", "avgTotalCut", "percent")],
+      ["Mentah tertinggi", rankText(maxBy(driverG, "pctMentah"), "driver", "pctMentah", "percent")],
+      ["Mengkal tertinggi", rankText(maxBy(driverG, "pctMengkal"), "driver", "pctMengkal", "percent")],
+      ["Tankos tertinggi", rankText(maxBy(driverG, "pctTankos"), "driver", "pctTankos", "percent")],
+      ["Overripe tertinggi", rankText(maxBy(driverG, "pctOverripe"), "driver", "pctOverripe", "percent")],
+      ["Busuk tertinggi", rankText(maxBy(driverG, "pctBusuk"), "driver", "pctBusuk", "percent")],
+      ["Tangkai panjang tertinggi", rankText(maxBy(driverG, "pctTangkaiPanjang"), "driver", "pctTangkaiPanjang", "percent")],
+      ["Partheno tertinggi", rankText(maxBy(driverG, "pctPartheno"), "driver", "pctPartheno", "percent")],
+      ["Makan tikus tertinggi", rankText(maxBy(driverG, "pctMakanTikus"), "driver", "pctMakanTikus", "percent")],
+      ["Tenera tertinggi", rankText(topTeneraDriver, "driver", "pctTenera", "percent")],
+      ["Dura tertinggi", rankText(topDuraDriver, "driver", "pctDura", "percent")]
     ]);
   }
 
@@ -3461,6 +3646,174 @@ File JPG: ${fileName}`;
     byId("setBalanceTolerance").value = t.balanceTolerance;
     byId("setGoodTeneraMin").value = t.goodTeneraMin;
     byId("setHighDuraMax").value = t.highDuraMax;
+    renderSettingsCategoryTable();
+    renderSettingsSupplierTable();
+  }
+
+  function renderSettingsCategoryTable() {
+    const table = byId("settingsCategoryTable");
+    if (!table) return;
+    const rows = getCustomGradingCategories(false);
+    if (!rows.length) {
+      table.innerHTML = emptyTable("Belum ada kategori tambahan. Kategori standar tetap aktif.");
+      return;
+    }
+    table.innerHTML = `<thead><tr><th>Kategori</th><th>Potongan (%)</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${rows.map((row) => `
+      <tr>
+        <td>${escapeHtml(row.name)}</td>
+        <td>${formatPct(row.cut)}</td>
+        <td>${row.status === "inactive" ? statusBadge("Nonaktif") : statusBadge("Aktif")}</td>
+        <td>${isStaff() ? `<div class="row-actions"><button class="btn btn-outline" data-action="edit-setting-category" data-id="${row.id}">Edit</button><button class="btn btn-secondary" data-action="toggle-setting-category" data-id="${row.id}">${row.status === "inactive" ? "Aktifkan" : "Nonaktifkan"}</button><button class="btn btn-danger" data-action="delete-setting-category" data-id="${row.id}">Hapus</button></div>` : "Akses Staff"}</td>
+      </tr>`).join("")}</tbody>`;
+  }
+
+  function saveCategorySetting() {
+    if (!requireStaffAction()) return;
+    const name = byId("settingCategoryName")?.value.trim();
+    const cut = Number(byId("settingCategoryCut")?.value || 0);
+    const status = byId("settingCategoryStatus")?.value || "active";
+    if (!name) { toast("Nama kategori wajib diisi.", true); return; }
+    if (!Array.isArray(state.settings.grading.customCategories)) state.settings.grading.customCategories = [];
+    if (state.editingCategoryId) {
+      const category = state.settings.grading.customCategories.find((item) => item.id === state.editingCategoryId);
+      if (category) { category.name = name; category.cut = cut; category.status = status; category.updatedAt = new Date().toISOString(); }
+      state.editingCategoryId = null;
+    } else {
+      const existing = state.settings.grading.customCategories.find((item) => item.name.toLowerCase() === name.toLowerCase());
+      if (existing) { existing.cut = cut; existing.status = status; existing.updatedAt = new Date().toISOString(); }
+      else state.settings.grading.customCategories.push({ id: makeId("CAT"), name, cut, status, createdAt: new Date().toISOString(), updatedAt: "" });
+    }
+    addAuditLog("settings", makeId("CATLOG"), "ubah kategori", null, { name, cut, status });
+    clearCategorySettingForm(false);
+    saveAll();
+    renderAll();
+    toast("Kategori grading berhasil disimpan.");
+  }
+
+  function clearCategorySettingForm(showToast = false) {
+    state.editingCategoryId = null;
+    if (byId("settingCategoryName")) byId("settingCategoryName").value = "";
+    if (byId("settingCategoryCut")) byId("settingCategoryCut").value = "0";
+    if (byId("settingCategoryStatus")) byId("settingCategoryStatus").value = "active";
+    if (showToast) toast("Form kategori dikosongkan.");
+  }
+
+  function loadCategorySettingToForm(id) {
+    if (!requireStaffAction()) return;
+    const category = state.settings.grading.customCategories.find((item) => item.id === id);
+    if (!category) return;
+    state.editingCategoryId = id;
+    byId("settingCategoryName").value = category.name || "";
+    byId("settingCategoryCut").value = Number(category.cut || 0);
+    byId("settingCategoryStatus").value = category.status || "active";
+    showSection("settingsSection");
+    toast("Kategori dimuat ke form edit.");
+  }
+
+  function toggleCategorySettingStatus(id) {
+    if (!requireStaffAction()) return;
+    const category = state.settings.grading.customCategories.find((item) => item.id === id);
+    if (!category) return;
+    category.status = category.status === "inactive" ? "active" : "inactive";
+    category.updatedAt = new Date().toISOString();
+    saveAll();
+    renderAll();
+    toast("Status kategori diperbarui.");
+  }
+
+  function deleteCategorySetting(id) {
+    if (!requireStaffAction()) return;
+    const category = state.settings.grading.customCategories.find((item) => item.id === id);
+    if (!category) return;
+    if (!confirm(`Hapus/nonaktifkan kategori ${category.name}?
+
+Data transaksi lama tetap aman.`)) return;
+    state.settings.grading.customCategories = state.settings.grading.customCategories.filter((item) => item.id !== id);
+    saveAll();
+    renderAll();
+    toast("Kategori dihapus dari input baru. Data lama tetap aman.");
+  }
+
+  function renderSettingsSupplierTable() {
+    const table = byId("settingsSupplierTable");
+    if (!table) return;
+    if (!state.suppliers.length) { table.innerHTML = emptyTable("Belum ada supplier."); return; }
+    table.innerHTML = `<thead><tr><th>Supplier</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${state.suppliers.map((row) => `
+      <tr>
+        <td>${escapeHtml(row.name)}</td>
+        <td>${row.status === "inactive" ? statusBadge("Nonaktif") : statusBadge("Aktif")}</td>
+        <td>${isStaff() ? `<div class="row-actions"><button class="btn btn-outline" data-action="edit-setting-supplier" data-id="${row.id}">Edit</button><button class="btn btn-secondary" data-action="toggle-setting-supplier" data-id="${row.id}">${row.status === "inactive" ? "Aktifkan" : "Nonaktifkan"}</button><button class="btn btn-danger" data-action="delete-setting-supplier" data-id="${row.id}">Hapus</button></div>` : "Akses Staff"}</td>
+      </tr>`).join("")}</tbody>`;
+  }
+
+  function saveSettingsSupplier() {
+    if (!requireStaffAction()) return;
+    const name = byId("settingsSupplierName")?.value.trim();
+    const status = byId("settingsSupplierStatus")?.value || "active";
+    if (!name) { toast("Nama supplier wajib diisi.", true); return; }
+    if (state.editingSettingsSupplierId) {
+      const supplier = state.suppliers.find((item) => item.id === state.editingSettingsSupplierId);
+      if (supplier) {
+        const oldName = supplier.name;
+        const nameChanged = oldName.toLowerCase() !== name.toLowerCase();
+        let applyToOldTransactions = false;
+        if (nameChanged) applyToOldTransactions = confirm("Apakah perubahan nama supplier juga diterapkan ke data transaksi lama?\n\nOK = Ya. Cancel = Tidak.");
+        supplier.name = name; supplier.status = status; supplier.updatedAt = new Date().toISOString();
+        if (applyToOldTransactions) updateSupplierNameInOldData(oldName, name);
+      }
+      state.editingSettingsSupplierId = null;
+    } else {
+      const existing = state.suppliers.find((item) => item.name.toLowerCase() === name.toLowerCase());
+      if (existing) { existing.status = status; existing.updatedAt = new Date().toISOString(); }
+      else state.suppliers.push({ id: makeId("SUP"), name, status, createdAt: new Date().toISOString(), updatedAt: "" });
+    }
+    clearSettingsSupplierForm(false);
+    saveAll();
+    renderAll();
+    toast("Supplier berhasil disimpan dari Pengaturan.");
+  }
+
+  function clearSettingsSupplierForm(showToast = false) {
+    state.editingSettingsSupplierId = null;
+    if (byId("settingsSupplierName")) byId("settingsSupplierName").value = "";
+    if (byId("settingsSupplierStatus")) byId("settingsSupplierStatus").value = "active";
+    if (showToast) toast("Form supplier dikosongkan.");
+  }
+
+  function loadSettingsSupplierToForm(id) {
+    if (!requireStaffAction()) return;
+    const supplier = state.suppliers.find((item) => item.id === id);
+    if (!supplier) return;
+    state.editingSettingsSupplierId = id;
+    byId("settingsSupplierName").value = supplier.name || "";
+    byId("settingsSupplierStatus").value = supplier.status || "active";
+    showSection("settingsSection");
+    toast("Supplier dimuat ke form Pengaturan.");
+  }
+
+  function toggleSettingsSupplierStatus(id) {
+    if (!requireStaffAction()) return;
+    const supplier = state.suppliers.find((item) => item.id === id);
+    if (!supplier) return;
+    supplier.status = supplier.status === "inactive" ? "active" : "inactive";
+    supplier.updatedAt = new Date().toISOString();
+    saveAll();
+    renderAll();
+    toast("Status supplier diperbarui.");
+  }
+
+  function deleteSettingsSupplier(id) {
+    if (!requireStaffAction()) return;
+    const supplier = state.suppliers.find((item) => item.id === id);
+    if (!supplier) return;
+    if (!confirm(`Nonaktifkan supplier ${supplier.name}?
+
+Data transaksi lama tidak akan dihapus.`)) return;
+    supplier.status = "inactive";
+    supplier.updatedAt = new Date().toISOString();
+    saveAll();
+    renderAll();
+    toast("Supplier dinonaktifkan. Data lama tetap aman.");
   }
 
   function saveGeneralSettings() {
@@ -3688,6 +4041,14 @@ File JPG: ${fileName}`;
     return valid.length ? valid.reduce((best, row) => Number(row[key]) > Number(best[key]) ? row : best, valid[0]) : null;
   }
 
+  function rankText(row, nameKey, valueKey, formatType = "percent") {
+    if (!row) return "-";
+    const name = row[nameKey] || "-";
+    const value = row[valueKey];
+    const display = formatType === "number" ? formatNumber(value || 0) : formatPct(value || 0);
+    return `${escapeHtml(name)} (${display})`;
+  }
+
   function getPresetRange(preset) {
     const today = new Date();
     const toStr = dateToString;
@@ -3850,6 +4211,12 @@ File JPG: ${fileName}`;
   }
 
   function renderSimpleTable(table, columns, rows) {
+    if (table) {
+      const wrap = table.closest(".table-wrap");
+      if (wrap) wrap.classList.add("force-horizontal-scroll", "analysis-scroll-wrap", "show-scroll-hint");
+      if (["supplierGradingTable", "driverGradingTable", "analysisAllGradingTable", "masterGradingSupplierTable", "masterGradingDriverTable"].includes(table.id)) table.classList.add("analysis-wide-table", "wide-transaction-table");
+      if (["supplierTdTable", "driverTdTable", "analysisAllTdTable", "masterTdSupplierTable", "masterTdDriverTable"].includes(table.id)) table.classList.add("analysis-td-table");
+    }
     if (!rows.length) {
       table.innerHTML = emptyTable("Belum ada data.");
       return;
@@ -3858,6 +4225,11 @@ File JPG: ${fileName}`;
   }
 
   function renderObjectTable(table, rows, emptyMessage) {
+    if (table) {
+      const wrap = table.closest(".table-wrap");
+      if (wrap) wrap.classList.add("force-horizontal-scroll", "show-scroll-hint");
+      table.classList.add("object-wide-table");
+    }
     if (!rows.length) {
       table.innerHTML = emptyTable(emptyMessage || "Belum ada data.");
       return;
@@ -3976,7 +4348,7 @@ File JPG: ${fileName}`;
 
   function allGradingColumns() {
     return [
-      { key: "id", label: "ID" },
+      { key: "id", label: "ID / Identitas" },
       { key: "date", label: "Tanggal" },
       { key: "time", label: "Jam" },
       { key: "spk", label: "SPK" },
@@ -4006,7 +4378,7 @@ File JPG: ${fileName}`;
 
   function allTdColumns() {
     return [
-      { key: "id", label: "ID" },
+      { key: "id", label: "ID / Identitas" },
       { key: "date", label: "Tanggal" },
       { key: "time", label: "Jam" },
       { key: "spk", label: "SPK" },

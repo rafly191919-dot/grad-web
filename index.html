@@ -4,14 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sistem Grading TBS dan Tenera Dura</title>
-  <link rel="stylesheet" href="styles.css?v=a5-landscape-print-full-page-20260620" />
+  <link rel="stylesheet" href="styles.css?v=login-789-123-20260620" />
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
-  <script defer src="app.js?v=a5-landscape-print-full-page-20260620"></script>
+  <script defer src="app.js?v=login-789-123-20260620"></script>
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-label="Kode masuk aplikasi">
@@ -556,6 +556,52 @@
             <div class="button-row"><button class="btn btn-primary" id="saveTdSettingsButton" data-staff-only>Simpan Tenera Dura</button><button class="btn btn-outline" id="resetTdSettingsButton" data-staff-only>Default</button></div>
           </div>
         </div>
+
+        <div class="grid two-columns settings-manage-grid">
+          <div class="card" data-staff-only>
+            <div class="card-header">
+              <div>
+                <h3>Kelola Kategori Grading</h3>
+                <p class="muted">Tambah, edit, nonaktifkan, atau hapus kategori tambahan. Kategori standar tetap aman.</p>
+              </div>
+              <span class="badge badge-green">Staff</span>
+            </div>
+            <div class="form-grid small-grid settings-grid">
+              <label>Nama Kategori<input type="text" id="settingCategoryName" placeholder="Contoh: Brondolan" /></label>
+              <label>Potongan (%)<input type="number" id="settingCategoryCut" step="0.01" value="0" /></label>
+              <label>Status<select id="settingCategoryStatus"><option value="active">Aktif</option><option value="inactive">Nonaktif</option></select></label>
+            </div>
+            <div class="button-row">
+              <button class="btn btn-primary" id="saveCategorySettingButton" type="button">Simpan Kategori</button>
+              <button class="btn btn-outline" id="newCategorySettingButton" type="button">+ Tambah Kategori Baru</button>
+            </div>
+            <div class="settings-table-wrap">
+              <table class="data-table" id="settingsCategoryTable"></table>
+            </div>
+          </div>
+
+          <div class="card" data-staff-only>
+            <div class="card-header">
+              <div>
+                <h3>Kelola Supplier</h3>
+                <p class="muted">Tambah, edit, aktifkan/nonaktifkan supplier dari menu Pengaturan.</p>
+              </div>
+              <span class="badge badge-green">Staff</span>
+            </div>
+            <div class="form-grid small-grid settings-grid">
+              <label>Nama Supplier<input type="text" id="settingsSupplierName" placeholder="Nama supplier" /></label>
+              <label>Status<select id="settingsSupplierStatus"><option value="active">Aktif</option><option value="inactive">Nonaktif</option></select></label>
+            </div>
+            <div class="button-row">
+              <button class="btn btn-primary" id="saveSettingsSupplierButton" type="button">Simpan Supplier</button>
+              <button class="btn btn-outline" id="newSettingsSupplierButton" type="button">+ Tambah Supplier Baru</button>
+            </div>
+            <div class="settings-table-wrap">
+              <table class="data-table" id="settingsSupplierTable"></table>
+            </div>
+          </div>
+        </div>
+
       </section>
     </main>
   </div>
