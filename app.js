@@ -662,7 +662,35 @@
       return true;
     } catch (error) {
       console.warn("Gagal menulis dokumen Firestore:", key, id, error);
-      setFirebaseStatus("Gagal sinkron. Data disimpan lokal", "error");
+      setFirebaseStatus("Gagal sinkron. Data belum tersimpan ke database", "error");
+      return false;
+    }
+  }
+
+  async function createFirestoreDocNoOverwrite(key, row) {
+    if (!firebaseState.ready || !firebaseState.db || !FIREBASE_COLLECTIONS[key] || !row) return false;
+    const collectionRef = firebaseState.db.collection(FIREBASE_COLLECTIONS[key]);
+    const prefix = key === "grading" ? "GRD" : key === "td" ? "TD" : key.toUpperCase();
+    try {
+      setFirebaseStatus("Menyimpan data baru...", "syncing");
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const candidate = sanitizeFirestoreId(row.id || nextTransactionId(prefix, row.date));
+        const ref = collectionRef.doc(String(candidate));
+        const existing = await ref.get();
+        if (!existing.exists) {
+          row.id = candidate;
+          await ref.set(cleanForFirestore({ ...row, id: candidate }), { merge: false });
+          setFirebaseStatus("Realtime aktif - data tersinkron", "online");
+          return true;
+        }
+        row.id = nextTransactionId(prefix, row.date);
+      }
+      toast("Gagal membuat kode transaksi unik. Silakan simpan ulang.", true);
+      return false;
+    } catch (error) {
+      console.warn("Gagal membuat dokumen baru Firestore tanpa overwrite:", key, row.id, error);
+      setFirebaseStatus("Gagal simpan. Data baru belum masuk database", "error");
+      toast("Data baru belum tersimpan ke Firebase. Cek koneksi/rules lalu ulangi simpan.", true);
       return false;
     }
   }
@@ -1108,7 +1136,21 @@
 
     ["dashboardPreset", "dataPreset", "reportPreset", "analysisPreset", "masterPreset"].forEach((id) => {
       const el = byId(id);
-      if (el) el.addEventListener("change", () => applyPresetToInputs(id));
+      if (el) el.addEventListener("change", () => {
+        applyPresetToInputs(id);
+        handleDateFilterAutoRender(id.replace("Preset", ""));
+      });
+    });
+    ["dashboard", "data", "report", "analysis", "master"].forEach((prefix) => {
+      ["Start", "End"].forEach((suffix) => {
+        const el = byId(`${prefix}${suffix}`);
+        if (!el) return;
+        el.addEventListener("change", () => {
+          const preset = byId(`${prefix}Preset`);
+          if (preset) preset.value = "custom";
+          handleDateFilterAutoRender(prefix);
+        });
+      });
     });
     byId("refreshMasterButton")?.addEventListener("click", renderMasterData);
     byId("exportMasterExcelButton")?.addEventListener("click", exportMasterExcel);
@@ -1503,17 +1545,16 @@
       updatedAt: ""
     };
 
-    state.grading.push(record);
+    const savedToFirebase = await createFirestoreDocNoOverwrite("grading", record);
+    if (!savedToFirebase) return null;
+
+    if (!state.grading.some((item) => item.id === record.id)) state.grading.push(record);
     upsertDriver(record.driver, record.plate, record.supplier);
     addAuditLog("grading", record.id, "tambah", null, record);
     const auditLog = state.auditLogs[state.auditLogs.length - 1];
     saveAllLocalOnly();
-    const savedToFirebase = await setFirestoreDoc("grading", record);
     await setFirestoreDoc("drivers", state.drivers.find((item) => item.name.toLowerCase() === record.driver.toLowerCase()));
     await setFirestoreDoc("auditLogs", auditLog);
-    if (!savedToFirebase) {
-      toast("Data tersimpan lokal, tetapi belum masuk Firebase. Cek koneksi/rules.", true);
-    }
     form.reset();
     form.elements.date.value = todayString();
     calculateGradingPreview();
@@ -1554,17 +1595,16 @@
       updatedAt: ""
     };
 
-    state.td.push(record);
+    const savedToFirebase = await createFirestoreDocNoOverwrite("td", record);
+    if (!savedToFirebase) return null;
+
+    if (!state.td.some((item) => item.id === record.id)) state.td.push(record);
     upsertDriver(record.driver, record.plate, record.supplier);
     addAuditLog("td", record.id, "tambah", null, record);
     const auditLog = state.auditLogs[state.auditLogs.length - 1];
     saveAllLocalOnly();
-    const savedToFirebase = await setFirestoreDoc("td", record);
     await setFirestoreDoc("drivers", state.drivers.find((item) => item.name.toLowerCase() === record.driver.toLowerCase()));
     await setFirestoreDoc("auditLogs", auditLog);
-    if (!savedToFirebase) {
-      toast("Data tersimpan lokal, tetapi belum masuk Firebase. Cek koneksi/rules.", true);
-    }
     form.reset();
     form.elements.date.value = todayString();
     calculateTdPreview();
@@ -1697,9 +1737,10 @@
       const value = category.type === "custom" ? Number(row.extraCategories?.[category.key] || 0) : Number(row[category.key] || 0);
       const percent = category.type === "custom" ? Number(row.pcts?.extra?.[category.key] || 0) : Number(row.pcts?.[category.key] || 0);
       const cut = category.type === "custom" ? Number(row.cuts?.extra?.[category.key] || 0) : Number(row.cuts?.[category.key] || 0);
+      const dotClass = String(category.key || "custom").replace(/[^a-z0-9-]/gi, "-").toLowerCase();
       return `
       <tr>
-        <td>${escapeHtml(category.label)}</td>
+        <td><span class="a5-cat-name"><i class="a5-cat-dot cat-${dotClass}"></i>${escapeHtml(category.label)}</span></td>
         <td>${formatNumber(value)}</td>
         <td>${formatPct(percent)}</td>
         <td>${formatPct(cut)}</td>
@@ -1721,63 +1762,66 @@
     const layoutClass = isGrading ? "is-grading-report" : "is-td-report";
 
     const infoCells = [
-      ["ID", record.id],
-      ["Tanggal", formatDate(record.date)],
-      ["Jam", record.time || "-"],
-      ["SPK", record.spk || "-"],
-      ["Sopir", record.driver || "-"],
-      ["Plat", record.plate || "-"],
-      ["Supplier", record.supplier || "-"],
-      ["Tiket / DO", record.ticket || "-"],
-      ["Petugas", record.officer || "-"]
-    ].map(([label, value]) => a5InfoCell(label, value)).join("");
+      ["Sopir", record.driver || "-", "👤"],
+      ["Nomor Polisi", record.plate || "-", "▣"],
+      ["Supplier", record.supplier || "-", "👥"],
+      ["Tiket / DO", record.ticket || "-", "▤"],
+      ["Petugas", record.officer || "-", "✓"]
+    ].map(([label, value, icon]) => `<div class="a5-info-cell"><b>${icon}</b><span>${escapeHtml(label)}</span><strong>${printableValue(value)}</strong></div>`).join("");
+
+    const topFacts = [
+      ["Tanggal", formatDate(record.date), "▦"],
+      ["Jam", record.time || "-", "◷"],
+      ["SPK", record.spk || "-", "▤"]
+    ].map(([label, value, icon]) => `<div class="a5-top-fact"><b>${icon}</b><span>${escapeHtml(label)}</span><strong>${printableValue(value)}</strong></div>`).join("");
 
     const summary = isGrading
       ? [
-          ["Total Janjang", formatNumber(record.totalJanjang)],
-          ["Masak", `${formatNumber(record.totalMasak)} (${formatPct(record.pcts?.masak || 0)})`],
-          ["Tidak Masak", `${formatNumber(record.totalTidakMasak)} (${formatPct(record.pcts?.tidakMasak || 0)})`],
-          ["Pot. Dasar", formatPct(record.baseCut)],
-          ["Pot. Akhir", formatPct(record.totalCut), "is-highlight"],
-          ["Status", record.status || "-"],
-          ["Catatan", record.note || "-", "is-note"]
-        ].map(([label, value, cls]) => a5Metric(label, value, cls || "")).join("")
+          ["Total Janjang", formatNumber(record.totalJanjang), "🌴"],
+          ["Total Masak", `${formatNumber(record.totalMasak)} <em>${formatPct(record.pcts?.masak || 0)}</em>`, "🔥"],
+          ["Total Tidak Masak", `${formatNumber(record.totalTidakMasak)} <em>${formatPct(record.pcts?.tidakMasak || 0)}</em>`, "🟢"],
+          ["Potongan Dasar", formatPct(record.baseCut), "%"],
+          ["Potongan Akhir", formatPct(record.totalCut), "↓", "is-highlight"],
+          ["Status", record.status || "-", "✓", "is-status"],
+          ["Catatan", record.note || "-", "▤", "is-note"]
+        ].map(([label, value, icon, cls]) => `<div class="a5-metric ${cls || ""}"><b>${icon}</b><span>${escapeHtml(label)}</span><strong>${value}</strong></div>`).join("")
       : [
-          ["Total Sampel", formatNumber(record.totalSample)],
-          ["Tenera", `${formatNumber(record.tenera)} (${formatPct(record.pctTenera || 0)})`, "is-highlight"],
-          ["Dura", `${formatNumber(record.dura)} (${formatPct(record.pctDura || 0)})`],
-          ["Status", record.status || "-"],
-          ["Catatan", record.note || "-", "is-note"]
-        ].map(([label, value, cls]) => a5Metric(label, value, cls || "")).join("");
+          ["Total Sampel", formatNumber(record.totalSample), "◼"],
+          ["Tenera", `${formatNumber(record.tenera)} <em>${formatPct(record.pctTenera || 0)}</em>`, "🌴", "is-highlight"],
+          ["Dura", `${formatNumber(record.dura)} <em>${formatPct(record.pctDura || 0)}</em>`, "◻"],
+          ["Status", record.status || "-", "✓", "is-status"],
+          ["Catatan", record.note || "-", "▤", "is-note"]
+        ].map(([label, value, icon, cls]) => `<div class="a5-metric ${cls || ""}"><b>${icon}</b><span>${escapeHtml(label)}</span><strong>${value}</strong></div>`).join("");
 
     const table = isGrading
-      ? `<table class="a5-table"><thead><tr><th>Kategori</th><th>Jumlah</th><th>%</th><th>Pot.</th></tr></thead><tbody>${printableGradingCategoryRows(record)}</tbody></table>`
-      : `<table class="a5-table"><thead><tr><th>Kategori</th><th>Jumlah</th><th>Persentase</th></tr></thead><tbody>${tdDetailRowsA5(record)}</tbody></table>`;
+      ? `<table class="a5-table"><thead><tr><th>Kategori</th><th>Jumlah</th><th>%</th><th>Potongan</th></tr></thead><tbody>${printableGradingCategoryRows(record)}</tbody></table><div class="a5-total-pill"><span>Total Potongan Akhir</span><strong>${formatPct(record.totalCut)}</strong></div>`
+      : `<table class="a5-table"><thead><tr><th>Kategori</th><th>Jumlah</th><th>Persentase</th></tr></thead><tbody>${tdDetailRowsA5(record)}</tbody></table><div class="a5-total-pill"><span>Status</span><strong>${printableValue(record.status)}</strong></div>`;
 
     return `
-      <article class="a5-report-sheet a5-landscape-sheet ${layoutClass} ${mode === "print" ? "is-print" : mode === "jpg" ? "is-jpg" : "is-screen"}">
-        <header class="a5-report-header">
-          <div class="a5-title-block">
+      <article class="a5-report-sheet a5-landscape-sheet a5-premium-report ${layoutClass} ${mode === "print" ? "is-print" : mode === "jpg" ? "is-jpg" : "is-screen"}">
+        <header class="a5-premium-hero">
+          <div class="a5-hero-copy">
             <div class="a5-kicker">PT KSD MILL</div>
             <h1>${escapeHtml(title)}</h1>
-            <p>${escapeHtml(company)} · Web Report Grading & Tenera Dura</p>
+            <p>Print Preview · Satu Transaksi · ${escapeHtml(company)}</p>
           </div>
-          <div class="a5-report-id">
-            <span>ID Transaksi</span>
-            <strong>${printableValue(record.id)}</strong>
-          </div>
+          <div class="a5-hero-mark"><span>KSD</span><small>MILL</small></div>
         </header>
+        <section class="a5-id-band">
+          <div class="a5-id-main"><b>▣</b><span>ID Transaksi</span><strong>${printableValue(record.id)}</strong></div>
+          <div class="a5-top-facts">${topFacts}</div>
+        </section>
         <main class="a5-landscape-body">
           <section class="a5-panel a5-info-panel">
-            <h2>Informasi Transaksi</h2>
+            <h2><span>●</span> Informasi Transaksi</h2>
             <div class="a5-info-grid">${infoCells}</div>
           </section>
           <section class="a5-panel a5-summary-panel">
-            <h2>Ringkasan Hasil</h2>
+            <h2><span>●</span> Ringkasan Hasil</h2>
             <div class="a5-summary-grid">${summary}</div>
           </section>
           <section class="a5-panel a5-detail-panel">
-            <h2>${isGrading ? "Detail Kategori Grading" : "Detail Sampel Tenera Dura"}</h2>
+            <h2><span>●</span> ${isGrading ? "Detail Kategori Grading" : "Detail Sampel Tenera Dura"}</h2>
             ${table}
           </section>
         </main>
@@ -1798,45 +1842,70 @@
 <style>
   @page { size: A4 portrait; margin: 0; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; width: 210mm; min-height: 297mm; background: #eef6f1; color: #13251c; font-family: Arial, Helvetica, sans-serif; }
+  html, body { margin: 0; padding: 0; width: 210mm; min-height: 297mm; background: #eef6f3; color: #092d38; font-family: Inter, "Segoe UI", Arial, Helvetica, sans-serif; }
   body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .print-page { width: 210mm; height: 297mm; margin: 0 auto; padding: 4mm 3mm; background: #fff; position: relative; overflow: hidden; }
-  .a5-print-stage { width: 204mm; height: 143mm; margin: 0 auto; padding: 0; display: flex; align-items: stretch; justify-content: stretch; overflow: hidden; background: #eef6f1; }
-  .cut-line { position: absolute; left: 6mm; right: 6mm; top: 148.5mm; border-top: 1px dashed #94aa9d; color: #60766d; font-size: 7px; text-align: center; }
-  .cut-line span { position: relative; top: -7px; background: #fff; padding: 0 3mm; }
-  .a5-report-sheet { width: 204mm; height: 143mm; max-width: 204mm; max-height: 143mm; overflow: hidden; background: #fff; border: 1px solid #bdd7c8; border-radius: 2.2mm; box-shadow: 0 10px 30px rgba(0,0,0,.16); display: flex; flex-direction: column; }
-  .a5-report-header { display: flex; justify-content: space-between; gap: 4mm; align-items: stretch; color: #fff; padding: 3.2mm 4.2mm; background: linear-gradient(135deg, #063a29, #0f7650); flex: 0 0 auto; }
-  .a5-kicker { font-size: 7px; letter-spacing: .16em; text-transform: uppercase; opacity: .88; font-weight: 800; }
-  .a5-report-header h1 { margin: .5mm 0 .6mm; font-size: 16px; line-height: 1; }
-  .a5-report-header p { margin: 0; font-size: 7.2px; opacity: .88; }
-  .a5-report-id { min-width: 42mm; border: 1px solid rgba(255,255,255,.35); border-radius: 2.5mm; padding: 1.8mm 2.4mm; text-align: right; align-self: center; }
-  .a5-report-id span { display: block; font-size: 6.5px; opacity: .86; text-transform: uppercase; letter-spacing: .08em; }
-  .a5-report-id strong { display: block; font-size: 7.5px; margin-top: .6mm; word-break: break-word; }
-  .a5-landscape-body { flex: 1 1 auto; display: grid; grid-template-columns: 34% 25% 1fr; gap: 2.2mm; padding: 2.2mm 3mm 1.8mm; min-height: 0; align-items: stretch; }
-  .a5-panel { min-width: 0; min-height: 0; border: 1px solid #d7e7dd; border-radius: 2mm; background: #fbfdfb; padding: 2mm; overflow: hidden; display: flex; flex-direction: column; }
-  .a5-panel h2 { margin: 0 0 1.3mm; font-size: 8px; color: #07563a; border-left: 2.5px solid #0f7650; padding-left: 1.5mm; }
-  .a5-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1mm; flex: 1 1 auto; align-content: stretch; }
-  .a5-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1mm; flex: 1 1 auto; align-content: stretch; }
-  .a5-info-cell, .a5-metric { border: 1px solid #d7e7dd; background: #fff; border-radius: 1.6mm; padding: 1.15mm 1.3mm; min-height: 10.8mm; display: flex; flex-direction: column; justify-content: center; }
-  .a5-info-cell span, .a5-metric span { display: block; color: #60736a; font-size: 5.8px; text-transform: uppercase; letter-spacing: .04em; font-weight: 800; margin-bottom: .45mm; }
-  .a5-info-cell strong, .a5-metric strong { display: block; font-size: 7.4px; line-height: 1.08; color: #13251c; word-break: break-word; }
-  .a5-metric.is-highlight { background: #e5f7ed; border-color: #8ecfad; }
-  .a5-metric.is-note { grid-column: span 2; min-height: 7mm; }
-  .a5-table { width: 100%; height: 100%; border-collapse: collapse; border: 1px solid #c8ded1; border-radius: 2mm; overflow: hidden; table-layout: fixed; }
-  .a5-table th { background: #07563a; color: #fff; text-align: left; font-size: 7.2px; padding: 1.25mm 1mm; }
-  .a5-table td { border-top: 1px solid #dfece5; font-size: 7px; padding: 1.2mm 1mm; line-height: 1.08; }
-  .a5-table tbody tr:nth-child(even) { background: #f4fbf7; }
-  .a5-footer { flex: 0 0 auto; display: flex; justify-content: space-between; gap: 4mm; margin: 0 3mm 2.3mm; padding-top: 1mm; border-top: 1px dashed #bdd5c7; color: #62766d; font-size: 6.2px; }
-  .screen-actions { position: sticky; bottom: 0; display: flex; gap: 8px; justify-content: center; padding: 12px; background: rgba(255,255,255,.96); border-top: 1px solid #d8e7de; }
-  .screen-actions button { border: 0; border-radius: 10px; padding: 10px 16px; font-weight: 800; cursor: pointer; }
+  .print-page { width: 210mm; height: 297mm; margin: 0 auto; padding: 1mm 1mm; background: linear-gradient(180deg, #ffffff 0%, #fbfffd 55%, #f7fcfb 100%); position: relative; overflow: hidden; }
+  .print-page:before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 10% 90%, rgba(7, 101, 115, .08), transparent 23%), radial-gradient(circle at 96% 5%, rgba(10, 118, 78, .12), transparent 20%); pointer-events: none; }
+  .print-page:after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 8mm; background: linear-gradient(90deg, #0b5065, #0e8a67); clip-path: polygon(0 55%, 82% 16%, 100% 0, 100% 100%, 0 100%); opacity: .95; }
+  .a5-print-stage { position: relative; width: 208mm; height: 146.5mm; margin: 0 auto; padding: 0; display: flex; align-items: stretch; justify-content: stretch; overflow: visible; z-index: 2; }
+  .cut-line { position: absolute; left: 4mm; right: 4mm; top: 148.5mm; border-top: 1.4px dashed #1d3d45; z-index: 3; }
+  .a5-report-sheet.a5-premium-report { width: 208mm; height: 146.5mm; max-width: 208mm; max-height: 146.5mm; overflow: hidden; background: #fff; border: 1px solid #bddbd0; border-radius: 3mm; box-shadow: 0 7px 22px rgba(2, 38, 43, .15); display: flex; flex-direction: column; position: relative; }
+  .a5-premium-report:before { content: ""; position: absolute; inset: 0; background: linear-gradient(140deg, rgba(5,82,99,.09), transparent 20%), radial-gradient(circle at 96% 1%, rgba(10,110,77,.16), transparent 23%); pointer-events: none; }
+  .a5-premium-hero { position: relative; z-index: 1; min-height: 24mm; padding: 4mm 6mm 2mm 20mm; background: linear-gradient(90deg, #f8fffd, #ffffff 55%, #eef8f5); overflow: hidden; }
+  .a5-premium-hero:before { content: ""; position: absolute; left: 0; top: 0; width: 18mm; height: 40mm; background: linear-gradient(135deg, #053e52, #0b8a68); clip-path: polygon(0 0, 100% 0, 35% 100%, 0 100%); }
+  .a5-premium-hero:after { content: ""; position: absolute; right: 2mm; top: 1mm; width: 42mm; height: 18mm; background: linear-gradient(135deg, rgba(6,69,85,.10), rgba(12,128,89,.10)); border-radius: 2mm; }
+  .a5-hero-copy { position: relative; z-index: 2; }
+  .a5-kicker { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #0a3847; font-weight: 900; }
+  .a5-premium-hero h1 { margin: .7mm 0 .5mm; color: #08344a; font-size: 34px; line-height: .9; letter-spacing: -.04em; text-transform: uppercase; font-weight: 1000; }
+  .a5-premium-hero p { margin: 0; color: #0d7180; font-size: 12px; font-weight: 900; }
+  .a5-hero-mark { position: absolute; right: 7mm; top: 4.5mm; z-index: 3; width: 19mm; height: 14mm; border-radius: 3mm; background: linear-gradient(135deg, rgba(4,82,99,.14), rgba(11,139,103,.14)); border: 1px solid rgba(13,103,110,.18); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #0b6070; font-weight: 1000; }
+  .a5-hero-mark span { font-size: 18px; line-height: .9; }
+  .a5-hero-mark small { font-size: 7px; letter-spacing: .18em; }
+  .a5-id-band { position: relative; z-index: 4; display: grid; grid-template-columns: 43% 1fr; gap: 4mm; align-items: center; margin: 0 5.5mm; min-height: 16mm; padding: 2.2mm 3.2mm; background: linear-gradient(100deg, #06455a, #087b70 55%, #0aa36f); color: #fff; border-radius: 3mm; box-shadow: 0 5px 12px rgba(3,70,78,.20); }
+  .a5-id-main { display: grid; grid-template-columns: 13mm 1fr; column-gap: 2mm; align-items: center; }
+  .a5-id-main b { grid-row: span 2; width: 11mm; height: 11mm; border-radius: 3mm; border: 1px solid rgba(255,255,255,.45); display: flex; align-items: center; justify-content: center; font-size: 18px; background: rgba(255,255,255,.10); }
+  .a5-id-main span, .a5-top-fact span { display: block; font-size: 9.6px; text-transform: uppercase; letter-spacing: .06em; opacity: .9; font-weight: 900; }
+  .a5-id-main strong { display: block; font-size: 20px; line-height: 1.04; font-weight: 1000; letter-spacing: -.02em; word-break: break-word; }
+  .a5-top-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2.5mm; }
+  .a5-top-fact { border-left: 1px solid rgba(255,255,255,.25); padding-left: 2.3mm; display: grid; grid-template-columns: 6mm 1fr; column-gap: 1.5mm; align-items: center; }
+  .a5-top-fact b { grid-row: span 2; font-size: 17px; opacity: .98; }
+  .a5-top-fact strong { display: block; font-size: 13.5px; line-height: 1.05; font-weight: 1000; }
+  .a5-landscape-body { position: relative; z-index: 2; flex: 1 1 auto; display: grid; grid-template-columns: 31% 30% 1fr; gap: 3mm; padding: 3.4mm 4.5mm 2.2mm; min-height: 0; align-items: stretch; }
+  .a5-panel { min-width: 0; min-height: 0; border: 1px solid #d3e5de; border-radius: 2.4mm; background: rgba(255,255,255,.92); padding: 2.3mm; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 4px 13px rgba(11,67,71,.08); }
+  .a5-panel h2 { display: flex; align-items: center; gap: 1.2mm; margin: 0 0 1.6mm; padding-bottom: 1.2mm; border-bottom: 1.5px solid #1b7a86; color: #0a5264; font-size: 12.8px; line-height: 1; text-transform: uppercase; font-weight: 1000; letter-spacing: -.02em; }
+  .a5-panel h2 span { color: #0a8b68; font-size: 12px; }
+  .a5-info-grid { display: grid; grid-template-columns: 1fr; gap: 1.3mm; flex: 1 1 auto; align-content: start; }
+  .a5-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.4mm; flex: 1 1 auto; align-content: start; }
+  .a5-info-cell, .a5-metric { position: relative; border: 1px solid #d6e6df; background: linear-gradient(180deg, #ffffff, #f9fdfb); border-radius: 2mm; padding: 1.4mm 1.6mm 1.4mm 8.2mm; min-height: 11.7mm; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+  .a5-info-cell b, .a5-metric b { position: absolute; left: 1.4mm; top: 50%; transform: translateY(-50%); width: 5.8mm; height: 5.8mm; border-radius: 1.5mm; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #e5f5f2, #ffffff); color: #0b6f7c; font-size: 13px; font-style: normal; }
+  .a5-info-cell span, .a5-metric span { display: block; color: #376370; font-size: 8.9px; text-transform: uppercase; letter-spacing: .04em; font-weight: 1000; margin-bottom: .45mm; }
+  .a5-info-cell strong, .a5-metric strong { display: block; font-size: 12.6px; line-height: 1.07; color: #082f42; word-break: break-word; font-weight: 1000; }
+  .a5-metric strong em { display: inline; font-size: 9px; font-style: normal; font-weight: 900; }
+  .a5-metric.is-highlight { background: linear-gradient(135deg, #e6f8f0, #ffffff); border-color: #92d4b5; }
+  .a5-metric.is-highlight strong { color: #087142; font-size: 15px; }
+  .a5-metric.is-status strong { color: #0a7a46; }
+  .a5-metric.is-note { grid-column: span 2; min-height: 9mm; }
+  .a5-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #c7ded8; border-radius: 2mm; overflow: hidden; table-layout: fixed; background: #fff; }
+  .a5-table th { background: linear-gradient(180deg, #075c70, #06485b); color: #fff; text-align: left; font-size: 10.2px; padding: 1.45mm 1.25mm; font-weight: 1000; }
+  .a5-table td { border-top: 1px solid #dcebe6; font-size: 10.1px; padding: 1.35mm 1.25mm; line-height: 1.08; color: #163341; font-weight: 700; }
+  .a5-table tbody tr:nth-child(even) { background: #f5fbf8; }
+  .a5-table th:not(:first-child), .a5-table td:not(:first-child) { text-align: center; }
+  .a5-cat-name { display: inline-flex; align-items: center; gap: 1.4mm; }
+  .a5-cat-dot { width: 2.3mm; height: 2.3mm; border-radius: 99px; background: #0a7d69; display: inline-block; flex: 0 0 auto; }
+  .cat-mentah { background: #8295a3; } .cat-mengkal { background: #f5bf11; } .cat-tankos { background: #f18f27; } .cat-overripe { background: #e35f3f; } .cat-busuk { background: #80511d; } .cat-tangkaipanjang, .cat-tangkai-panjang { background: #7d65a7; } .cat-partheno { background: #db74aa; } .cat-makantikus, .cat-makan-tikus { background: #42b99d; }
+  .a5-total-pill { margin-top: 1.4mm; display: flex; align-items: center; justify-content: space-between; gap: 2mm; background: linear-gradient(90deg, #e4f5f2, #ffffff); border: 1px solid #c8e6dc; border-radius: 2mm; padding: 1.4mm 1.7mm; color: #0b5a66; text-transform: uppercase; font-size: 10.7px; font-weight: 1000; }
+  .a5-total-pill strong { background: linear-gradient(135deg, #0b6473, #0f9673); color: #fff; border-radius: 2mm; padding: 1.5mm 2.3mm; font-size: 18px; line-height: 1; }
+  .a5-footer { position: relative; z-index: 2; flex: 0 0 auto; display: flex; justify-content: space-between; gap: 4mm; margin: 0 5.5mm 2.5mm; padding-top: 1mm; border-top: 1px dashed #bdd5c7; color: #5b7375; font-size: 9px; font-weight: 800; }
+  .screen-actions { position: sticky; bottom: 0; z-index: 9; display: flex; gap: 8px; justify-content: center; padding: 12px; background: rgba(255,255,255,.96); border-top: 1px solid #d8e7de; }
+  .screen-actions button { border: 0; border-radius: 10px; padding: 10px 16px; font-weight: 900; cursor: pointer; }
   .primary { background: #0f7650; color: #fff; }
   .secondary { background: #e9f7ee; color: #0b573b; }
   @media print {
     @page { size: A4 portrait; margin: 0; }
     html, body { width: 210mm; height: 297mm; background: #fff; overflow: hidden; }
-    .print-page { width: 210mm; height: 297mm; margin: 0; padding: 4mm 3mm; box-shadow: none; page-break-after: avoid; break-after: avoid; }
-    .a5-print-stage { width: 204mm; height: 143mm; margin: 0 auto; }
-    .a5-report-sheet { width: 204mm; height: 143mm; margin: 0; box-shadow: none; border-radius: 2mm; page-break-inside: avoid; break-inside: avoid; }
+    .print-page { width: 210mm; height: 297mm; margin: 0; padding: 1mm 1mm; box-shadow: none; page-break-after: avoid; break-after: avoid; }
+    .a5-print-stage { width: 208mm; height: 146.5mm; margin: 0 auto; }
+    .a5-report-sheet.a5-premium-report { width: 208mm; height: 146.5mm; margin: 0; box-shadow: none; page-break-inside: avoid; break-inside: avoid; }
     .screen-actions { display: none; }
   }
   @media screen and (max-width: 900px) {
@@ -1848,7 +1917,7 @@
 <body>
   <div class="print-page">
     <div class="a5-print-stage">${buildA5ReportSheet(type, record, "print")}</div>
-    <div class="cut-line"><span>Garis potong A4 menjadi 2 area A5 landscape</span></div>
+    <div class="cut-line"></div>
   </div>
   <div class="screen-actions">
     <button class="secondary" onclick="window.close()">Tutup</button>
@@ -2325,7 +2394,7 @@ File JPG: ${fileName}`;
   }
 
   function filterTransactions(data, filter) {
-    return data.filter((item) => {
+    const rows = data.filter((item) => {
       const dateOk = isDateInRange(item.date, filter.start, filter.end);
       const supplierOk = !filter.supplier || item.supplier === filter.supplier;
       const driverOk = !filter.driver || item.driver.toLowerCase().includes(filter.driver.toLowerCase());
@@ -2334,6 +2403,25 @@ File JPG: ${fileName}`;
       const searchOk = !filter.search || searchText.includes(filter.search);
       return dateOk && supplierOk && driverOk && plateOk && searchOk;
     });
+    return sortTransactionsNewest(rows);
+  }
+
+  function sortTransactionsNewest(rows) {
+    return [...rows].sort((a, b) => {
+      const diff = getTransactionSortTime(b) - getTransactionSortTime(a);
+      if (diff) return diff;
+      return String(b.id || "").localeCompare(String(a.id || ""));
+    });
+  }
+
+  function getTransactionSortTime(row) {
+    const candidates = [row.updatedAt, row.createdAt, `${row.date || ""}T${row.time || "00:00"}`];
+    for (const value of candidates) {
+      if (!value) continue;
+      const stamp = Date.parse(value);
+      if (Number.isFinite(stamp)) return stamp;
+    }
+    return 0;
   }
 
   function renderGradingDataTable(data) {
@@ -4071,12 +4159,26 @@ Data transaksi lama tidak akan dihapus.`)) return;
   }
 
   function getDateFilterFromControls(prefix) {
-    const preset = byId(`${prefix}Preset`)?.value || "all";
+    const presetControl = byId(`${prefix}Preset`);
+    const startValue = byId(`${prefix}Start`)?.value || "";
+    const endValue = byId(`${prefix}End`)?.value || "";
+    let preset = presetControl?.value || "all";
+    if ((startValue || endValue) && preset !== "custom") {
+      preset = "custom";
+      if (presetControl) presetControl.value = "custom";
+    }
     if (preset === "custom") {
-      return { preset, start: byId(`${prefix}Start`)?.value || "", end: byId(`${prefix}End`)?.value || "" };
+      return { preset, start: startValue, end: endValue };
     }
     const range = getPresetRange(preset);
     return { preset, ...range };
+  }
+
+  function handleDateFilterAutoRender(prefix) {
+    if (prefix === "dashboard") renderDashboard();
+    else if (prefix === "data") renderDataTables();
+    else if (prefix === "analysis") renderAnalysis();
+    else if (prefix === "master") renderMasterData();
   }
 
   function filterByDate(data, start, end) {
@@ -4151,9 +4253,10 @@ Data transaksi lama tidak akan dihapus.`)) return;
 
   function nextTransactionId(prefix, date) {
     const compactDate = (date || todayString()).replaceAll("-", "");
-    const list = prefix === "GRD" ? state.grading : state.td;
-    const number = list.filter((item) => item.id && item.id.startsWith(`${prefix}-${compactDate}`)).length + 1;
-    return `${prefix}-${compactDate}-${String(number).padStart(4, "0")}`;
+    const now = new Date();
+    const time = `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}${String(now.getMilliseconds()).padStart(3, "0")}`;
+    const token = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `${prefix}-${compactDate}-${time}-${token}`;
   }
 
   function escapeHtml(value) {

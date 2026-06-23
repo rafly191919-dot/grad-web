@@ -2697,3 +2697,216 @@ body.role-operator [data-staff-only] {
 .settings-table-wrap .data-table {
   min-width: 760px !important;
 }
+
+/* Revisi Premium Print/JPG Data Masing-Masing */
+.a5-report-sheet.a5-premium-report {
+  font-family: Inter, "Segoe UI", Arial, Helvetica, sans-serif !important;
+  width: 1120px !important;
+  height: 785px !important;
+  max-width: 1120px !important;
+  max-height: 785px !important;
+  overflow: hidden !important;
+  background: #fff !important;
+  border: 1px solid #bddbd0 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 16px 42px rgba(2, 38, 43, .15) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  position: relative !important;
+  color: #092d38 !important;
+}
+.a5-report-sheet.a5-premium-report::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(140deg, rgba(5,82,99,.08), transparent 20%), radial-gradient(circle at 96% 1%, rgba(10,110,77,.14), transparent 23%);
+  pointer-events: none;
+}
+.a5-premium-report .a5-premium-hero {
+  position: relative;
+  z-index: 1;
+  min-height: 122px;
+  padding: 24px 36px 14px 112px;
+  background: linear-gradient(90deg, #f8fffd, #ffffff 55%, #eef8f5);
+  overflow: hidden;
+}
+.a5-premium-report .a5-premium-hero::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100px;
+  height: 210px;
+  background: linear-gradient(135deg, #053e52, #0b8a68);
+  clip-path: polygon(0 0, 100% 0, 35% 100%, 0 100%);
+}
+.a5-premium-report .a5-premium-hero::after {
+  content: "";
+  position: absolute;
+  right: 15px;
+  top: 10px;
+  width: 245px;
+  height: 95px;
+  background: linear-gradient(135deg, rgba(6,69,85,.10), rgba(12,128,89,.10));
+  border-radius: 16px;
+}
+.a5-premium-report .a5-hero-copy { position: relative; z-index: 2; }
+.a5-premium-report .a5-kicker { font-size: 17px !important; letter-spacing: .08em !important; text-transform: uppercase; color: #0a3847; font-weight: 900 !important; }
+.a5-premium-report .a5-premium-hero h1 { margin: 4px 0 3px !important; color: #08344a !important; font-size: 50px !important; line-height: .92 !important; letter-spacing: -.04em !important; text-transform: uppercase !important; font-weight: 1000 !important; }
+.a5-premium-report .a5-premium-hero p { margin: 0 !important; color: #0d7180 !important; font-size: 17px !important; font-weight: 800 !important; }
+.a5-premium-report .a5-hero-mark { position: absolute; right: 44px; top: 28px; z-index: 3; width: 110px; height: 78px; border-radius: 18px; background: linear-gradient(135deg, rgba(4,82,99,.14), rgba(11,139,103,.14)); border: 1px solid rgba(13,103,110,.18); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #0b6070; font-weight: 1000; }
+.a5-premium-report .a5-hero-mark span { font-size: 30px; line-height: .9; }
+.a5-premium-report .a5-hero-mark small { font-size: 10px; letter-spacing: .18em; }
+.a5-premium-report .a5-id-band { position: relative; z-index: 4; display: grid; grid-template-columns: 43% 1fr; gap: 22px; align-items: center; margin: 0 32px; min-height: 90px; padding: 13px 18px; background: linear-gradient(100deg, #06455a, #087b70 55%, #0aa36f); color: #fff; border-radius: 18px; box-shadow: 0 12px 24px rgba(3,70,78,.20); }
+.a5-premium-report .a5-id-main { display: grid; grid-template-columns: 66px 1fr; column-gap: 12px; align-items: center; }
+.a5-premium-report .a5-id-main b { grid-row: span 2; width: 58px; height: 58px; border-radius: 16px; border: 1px solid rgba(255,255,255,.45); display: flex; align-items: center; justify-content: center; font-size: 28px; background: rgba(255,255,255,.10); }
+.a5-premium-report .a5-id-main span, .a5-premium-report .a5-top-fact span { display: block; font-size: 12px !important; text-transform: uppercase; letter-spacing: .06em; opacity: .9; font-weight: 900; }
+.a5-premium-report .a5-id-main strong { display: block; font-size: 29px !important; line-height: 1.05; font-weight: 1000; letter-spacing: -.02em; word-break: break-word; }
+.a5-premium-report .a5-top-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.a5-premium-report .a5-top-fact { border-left: 1px solid rgba(255,255,255,.25); padding-left: 14px; display: grid; grid-template-columns: 34px 1fr; column-gap: 8px; align-items: center; }
+.a5-premium-report .a5-top-fact b { grid-row: span 2; font-size: 25px; opacity: .98; }
+.a5-premium-report .a5-top-fact strong { display: block; font-size: 19px !important; line-height: 1.05; font-weight: 1000; }
+.a5-premium-report .a5-landscape-body { position: relative; z-index: 2; flex: 1 1 auto; display: grid !important; grid-template-columns: 30% 29% 1fr !important; gap: 16px !important; padding: 16px 32px 12px !important; min-height: 0; align-items: stretch; }
+.a5-premium-report .a5-panel { min-width: 0; min-height: 0; border: 1px solid #d3e5de; border-radius: 16px; background: rgba(255,255,255,.92); padding: 14px !important; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 8px 20px rgba(11,67,71,.08); }
+.a5-premium-report .a5-panel h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px !important; padding-bottom: 8px !important; border-bottom: 2px solid #1b7a86; color: #0a5264 !important; font-size: 16px !important; line-height: 1; text-transform: uppercase; font-weight: 1000; letter-spacing: -.02em; }
+.a5-premium-report .a5-panel h2 span { color: #0a8b68; font-size: 16px; }
+.a5-premium-report .a5-info-grid { display: grid !important; grid-template-columns: 1fr !important; gap: 8px !important; flex: 1 1 auto; align-content: start; }
+.a5-premium-report .a5-summary-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; flex: 1 1 auto; align-content: start; }
+.a5-premium-report .a5-info-cell, .a5-premium-report .a5-metric { position: relative; border: 1px solid #d6e6df; background: linear-gradient(180deg, #ffffff, #f9fdfb); border-radius: 12px; padding: 9px 10px 9px 44px !important; min-height: 61px; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+.a5-premium-report .a5-info-cell b, .a5-premium-report .a5-metric b { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #e5f5f2, #ffffff); color: #0b6f7c; font-size: 17px; font-style: normal; }
+.a5-premium-report .a5-info-cell span, .a5-premium-report .a5-metric span { display: block; color: #376370; font-size: 10px !important; text-transform: uppercase; letter-spacing: .04em; font-weight: 1000; margin-bottom: 3px; }
+.a5-premium-report .a5-info-cell strong, .a5-premium-report .a5-metric strong { display: block; font-size: 16px !important; line-height: 1.08; color: #082f42; word-break: break-word; font-weight: 1000; }
+.a5-premium-report .a5-metric strong em { display: inline; font-size: 13px; font-style: normal; font-weight: 900; }
+.a5-premium-report .a5-metric.is-highlight { background: linear-gradient(135deg, #e6f8f0, #ffffff); border-color: #92d4b5; }
+.a5-premium-report .a5-metric.is-highlight strong { color: #087142; font-size: 23px !important; }
+.a5-premium-report .a5-metric.is-status strong { color: #0a7a46; }
+.a5-premium-report .a5-metric.is-note { grid-column: span 2; min-height: 52px; }
+.a5-premium-report .a5-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #c7ded8; border-radius: 12px; overflow: hidden; table-layout: fixed; background: #fff; }
+.a5-premium-report .a5-table th { background: linear-gradient(180deg, #075c70, #06485b); color: #fff; text-align: left; font-size: 13px !important; padding: 9px 8px !important; font-weight: 1000; }
+.a5-premium-report .a5-table td { border-top: 1px solid #dcebe6; font-size: 12.5px !important; padding: 8px 8px !important; line-height: 1.08; color: #163341; font-weight: 700; }
+.a5-premium-report .a5-table tbody tr:nth-child(even) { background: #f5fbf8; }
+.a5-premium-report .a5-table th:not(:first-child), .a5-premium-report .a5-table td:not(:first-child) { text-align: center; }
+.a5-premium-report .a5-cat-name { display: inline-flex; align-items: center; gap: 8px; }
+.a5-premium-report .a5-cat-dot { width: 11px; height: 11px; border-radius: 99px; background: #0a7d69; display: inline-block; flex: 0 0 auto; }
+.a5-premium-report .cat-mentah { background: #8295a3; } .a5-premium-report .cat-mengkal { background: #f5bf11; } .a5-premium-report .cat-tankos { background: #f18f27; } .a5-premium-report .cat-overripe { background: #e35f3f; } .a5-premium-report .cat-busuk { background: #80511d; } .a5-premium-report .cat-tangkaipanjang, .a5-premium-report .cat-tangkai-panjang { background: #7d65a7; } .a5-premium-report .cat-partheno { background: #db74aa; } .a5-premium-report .cat-makantikus, .a5-premium-report .cat-makan-tikus { background: #42b99d; }
+.a5-premium-report .a5-total-pill { margin-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(90deg, #e4f5f2, #ffffff); border: 1px solid #c8e6dc; border-radius: 12px; padding: 9px 10px; color: #0b5a66; text-transform: uppercase; font-size: 13px; font-weight: 1000; }
+.a5-premium-report .a5-total-pill strong { background: linear-gradient(135deg, #0b6473, #0f9673); color: #fff; border-radius: 12px; padding: 9px 14px; font-size: 25px; line-height: 1; }
+.a5-premium-report .a5-footer { position: relative; z-index: 2; flex: 0 0 auto; display: flex; justify-content: space-between; gap: 24px; margin: 0 32px 14px; padding-top: 7px; border-top: 1px dashed #bdd5c7; color: #5b7375; font-size: 11px !important; font-weight: 800; }
+.a5-jpg-landscape-wrap { display: inline-flex !important; width: auto !important; max-width: none !important; padding: 18px !important; background: #eef6f3 !important; overflow: visible !important; }
+
+/* REVISI DATA AMAN + PRINT PREMIUM FULL: tampilan JPG/preview lebih penuh dan teks lebih jelas */
+.a5-report-sheet.a5-landscape-sheet,
+.a5-landscape-sheet {
+  width: 1500px !important;
+  height: 1057px !important;
+  border-radius: 18px !important;
+}
+.a5-jpg-landscape-wrap .a5-landscape-sheet,
+.a5-jpg-landscape-wrap .a5-report-sheet.a5-landscape-sheet {
+  width: 1680px !important;
+  height: 1184px !important;
+}
+.a5-landscape-sheet .a5-premium-hero {
+  min-height: 118px !important;
+  padding-top: 22px !important;
+  padding-bottom: 18px !important;
+}
+.a5-landscape-sheet .a5-premium-hero h1,
+.a5-landscape-sheet .a5-report-header h1 {
+  font-size: 42px !important;
+  line-height: .92 !important;
+  letter-spacing: -.04em !important;
+}
+.a5-landscape-sheet .a5-premium-hero p,
+.a5-landscape-sheet .a5-report-header p {
+  font-size: 16px !important;
+  font-weight: 900 !important;
+}
+.a5-landscape-sheet .a5-kicker {
+  font-size: 15px !important;
+  font-weight: 1000 !important;
+}
+.a5-landscape-sheet .a5-id-band {
+  min-height: 82px !important;
+  margin-left: 26px !important;
+  margin-right: 26px !important;
+  padding: 14px 18px !important;
+}
+.a5-landscape-sheet .a5-id-main span,
+.a5-landscape-sheet .a5-top-fact span {
+  font-size: 12px !important;
+}
+.a5-landscape-sheet .a5-id-main strong {
+  font-size: 24px !important;
+}
+.a5-landscape-sheet .a5-top-fact strong {
+  font-size: 17px !important;
+}
+.a5-landscape-sheet .a5-landscape-body {
+  grid-template-columns: 31% 30% 1fr !important;
+  gap: 14px !important;
+  padding: 16px 22px 12px !important;
+}
+.a5-landscape-sheet .a5-panel {
+  padding: 14px !important;
+  border-radius: 16px !important;
+}
+.a5-landscape-sheet .a5-panel h2 {
+  font-size: 18px !important;
+  margin-bottom: 12px !important;
+  line-height: 1.05 !important;
+}
+.a5-landscape-sheet .a5-info-grid,
+.a5-landscape-sheet .a5-summary-grid {
+  gap: 9px !important;
+}
+.a5-landscape-sheet .a5-info-cell,
+.a5-landscape-sheet .a5-metric {
+  min-height: 69px !important;
+  padding: 10px 12px !important;
+}
+.a5-landscape-sheet .a5-info-cell span,
+.a5-landscape-sheet .a5-metric span {
+  font-size: 12px !important;
+  margin-bottom: 5px !important;
+}
+.a5-landscape-sheet .a5-info-cell strong,
+.a5-landscape-sheet .a5-metric strong {
+  font-size: 15px !important;
+  line-height: 1.1 !important;
+}
+.a5-landscape-sheet .a5-metric.is-highlight strong {
+  font-size: 21px !important;
+}
+.a5-landscape-sheet .a5-table th {
+  font-size: 14px !important;
+  padding: 10px 10px !important;
+}
+.a5-landscape-sheet .a5-table td {
+  font-size: 13.5px !important;
+  padding: 10px 10px !important;
+  line-height: 1.12 !important;
+}
+.a5-landscape-sheet .a5-total-pill {
+  font-size: 14px !important;
+  padding: 10px 12px !important;
+}
+.a5-landscape-sheet .a5-total-pill strong {
+  font-size: 24px !important;
+}
+.a5-landscape-sheet .a5-footer {
+  font-size: 12.5px !important;
+  margin: 0 22px 14px !important;
+}
+@media (max-width: 900px) {
+  .a5-report-sheet.a5-landscape-sheet,
+  .a5-landscape-sheet {
+    width: 1280px !important;
+    height: 902px !important;
+  }
+  .a5-jpg-landscape-wrap .a5-landscape-sheet,
+  .a5-jpg-landscape-wrap .a5-report-sheet.a5-landscape-sheet {
+    width: 1500px !important;
+    height: 1057px !important;
+  }
+}
